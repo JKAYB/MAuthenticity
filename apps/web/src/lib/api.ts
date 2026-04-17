@@ -1,7 +1,8 @@
 import { clearToken, getToken, setToken } from "./auth-storage";
 
 export function apiBase(): string {
-  return import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+  const raw = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+  return String(raw).replace(/\/+$/, "");
 }
 
 export type ApiErrorBody = { error?: string };
