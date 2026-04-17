@@ -1,5 +1,6 @@
 import {
   createFileRoute,
+  isRedirect,
   Link,
   redirect,
   useNavigate,
@@ -11,16 +12,22 @@ import { Eye, EyeOff, ArrowRight, Github, Mail, ShieldCheck, Sparkles } from "lu
 import { useState } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/brand/Logo";
+import { prefetchMe, useLogin, useSignup } from "@/features/auth/hooks";
 import { getToken } from "@/lib/auth-storage";
-import { loginRequest, signupRequest } from "@/lib/api";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
   }),
-  beforeLoad: () => {
+  beforeLoad: async () => {
     if (typeof window === "undefined") return;
-    if (getToken()) throw redirect({ to: "/dashboard" });
+    if (!getToken()) return;
+    try {
+      await prefetchMe();
+      throw redirect({ to: "/dashboard" });
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+    }
   },
   head: () => ({
     meta: [
@@ -40,9 +47,10 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const router = useRouter();
+  const loginMutation = useLogin();
+  const signupMutation = useSignup();
   const isLogin = mode === "login";
   const redirectTo = useRouterState({
     select: (s) => {
@@ -51,16 +59,17 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
     },
   });
 
+  const busy = loginMutation.isPending || signupMutation.isPending;
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
     try {
       if (isLogin) {
-        await loginRequest(email, password);
+        await loginMutation.mutateAsync({ email, password });
         toast.success("Signed in");
       } else {
-        await signupRequest(email, password);
-        await loginRequest(email, password);
+        await signupMutation.mutateAsync({ email, password });
+        await loginMutation.mutateAsync({ email, password });
         toast.success("Account created");
       }
       await router.invalidate();
@@ -68,8 +77,6 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
       navigate({ to: target });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setBusy(false);
     }
   };
 

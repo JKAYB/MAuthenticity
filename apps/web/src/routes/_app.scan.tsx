@@ -1,6 +1,7 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 import {
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { submitScanFile } from "@/lib/api";
+import { scanKeys } from "@/features/scan/queryKeys";
+import { getLiveDemoSnapshot, isLiveDemo, subscribeLiveDemo } from "@/lib/demo-mode";
 
 export const Route = createFileRoute("/_app/scan")({
   head: () => ({ meta: [{ title: "New scan — MediaAuth" }] }),
@@ -26,12 +29,21 @@ type Tab = "upload" | "url";
 type Phase = "idle" | "uploading" | "analyzing" | "done";
 
 function ScanPage() {
+  const qc = useQueryClient();
+  const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
   const [tab, setTab] = useState<Tab>("upload");
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
   const [files, setFiles] = useState<File[]>([]);
   const [url, setUrl] = useState("");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (liveDemo) {
+      setFiles([]);
+      setUrl("");
+    }
+  }, [liveDemo]);
 
   const onDrop = useCallback((accepted: File[]) => {
     setFiles(accepted);
@@ -45,9 +57,14 @@ function ScanPage() {
       "audio/*": [],
     },
     multiple: true,
+    disabled: liveDemo,
   });
 
   const startScan = async () => {
+    if (isLiveDemo()) {
+      toast.message("Live demo uses sample scans only. Exit demo in the banner, then run a real scan.");
+      return;
+    }
     if (tab === "url") {
       toast.error("URL scans are not supported by the API yet.");
       return;
@@ -61,6 +78,7 @@ function ScanPage() {
     setProgress(25);
     try {
       const { id } = await submitScanFile(file);
+      await qc.invalidateQueries({ queryKey: scanKeys.all });
       setProgress(100);
       setPhase("done");
       toast.success("Scan queued");
@@ -72,10 +90,18 @@ function ScanPage() {
     }
   };
 
-  const canStart = (tab === "upload" && files.length > 0) || (tab === "url" && url.length > 4);
+  const canStart =
+    !liveDemo && ((tab === "upload" && files.length > 0) || (tab === "url" && url.length > 4));
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto space-y-6">
+      {liveDemo ? (
+        <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-foreground">
+          <span className="font-semibold">Live demo.</span> File uploads and API scans are disabled.
+          Use <span className="font-semibold">Exit demo</span> in the top banner to run real scans
+          against your workspace.
+        </div>
+      ) : null}
       <div>
         <div className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
           Authenticity engine
@@ -99,6 +125,7 @@ function ScanPage() {
         ).map((t) => (
           <button
             key={t.id}
+            type="button"
             onClick={() => setTab(t.id)}
             className="relative inline-flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-medium"
           >
@@ -145,10 +172,11 @@ function ScanPage() {
                   <div
                     {...getRootProps()}
                     className={cn(
-                      "group relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-14 text-center transition",
-                      isDragActive
-                        ? "border-primary bg-primary/10"
-                        : "border-border/80 bg-input/30 hover:border-primary/60 hover:bg-primary/5",
+                      "group relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-14 text-center transition",
+                      liveDemo
+                        ? "cursor-not-allowed border-border/50 bg-muted/30 text-muted-foreground"
+                        : "cursor-pointer border-border/80 bg-input/30 hover:border-primary/60 hover:bg-primary/5",
+                      !liveDemo && isDragActive && "border-primary bg-primary/10",
                     )}
                   >
                     <input {...getInputProps()} />
@@ -156,14 +184,24 @@ function ScanPage() {
                       <UploadCloud className="h-6 w-6" />
                     </div>
                     <h3 className="mt-4 font-display text-lg font-semibold">
-                      {isDragActive ? "Drop files to scan" : "Drag & drop media here"}
+                      {liveDemo
+                        ? "Uploads disabled in demo"
+                        : isDragActive
+                          ? "Drop files to scan"
+                          : "Drag & drop media here"}
                     </h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      or{" "}
-                      <span className="text-primary underline-offset-4 hover:underline">
-                        browse files
-                      </span>{" "}
-                      · images, video, audio · up to 2 GB
+                      {liveDemo ? (
+                        "Exit live demo to add files and call the API."
+                      ) : (
+                        <>
+                          or{" "}
+                          <span className="text-primary underline-offset-4 hover:underline">
+                            browse files
+                          </span>{" "}
+                          · images, video, audio · up to 2 GB
+                        </>
+                      )}
                     </p>
                     <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
                       {[
@@ -220,8 +258,9 @@ function ScanPage() {
                       <input
                         value={url}
                         onChange={(e) => setUrl(e.target.value)}
+                        disabled={liveDemo}
                         placeholder="https://example.com/video.mp4"
-                        className="h-11 w-full rounded-lg border border-border bg-input/60 pl-10 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+                        className="h-11 w-full rounded-lg border border-border bg-input/60 pl-10 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60"
                       />
                     </div>
                   </label>
@@ -234,6 +273,7 @@ function ScanPage() {
 
               <div className="mt-6 flex items-center justify-end gap-3">
                 <button
+                  type="button"
                   disabled={!canStart}
                   onClick={startScan}
                   className={cn(

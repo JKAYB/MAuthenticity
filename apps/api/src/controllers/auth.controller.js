@@ -3,11 +3,42 @@ const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 const { pool } = require("../db/pool");
 
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 200;
+
+/** Returns an error message or null if the password meets policy. */
+function passwordPolicyError(password) {
+  if (typeof password !== "string") {
+    return "Password is required";
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return "Password is too long";
+  }
+  if (!/[a-z]/.test(password)) {
+    return "Password must include a lowercase letter";
+  }
+  if (!/[A-Z]/.test(password)) {
+    return "Password must include an uppercase letter";
+  }
+  if (!/[0-9]/.test(password)) {
+    return "Password must include a number";
+  }
+  return null;
+}
+
 async function signup(req, res, next) {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: "email and password are required" });
+    }
+
+    const policyErr = passwordPolicyError(password);
+    if (policyErr) {
+      return res.status(400).json({ error: policyErr });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -89,21 +120,124 @@ async function deleteApiKey(req, res, next) {
   }
 }
 
+async function fetchUserProfile(userId) {
+  const { rows } = await pool.query(
+    `SELECT id, email, display_name, organization, plan
+     FROM users WHERE id = $1 LIMIT 1`,
+    [userId]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const name =
+    row.display_name && String(row.display_name).trim()
+      ? String(row.display_name).trim()
+      : null;
+  const organization =
+    row.organization && String(row.organization).trim()
+      ? String(row.organization).trim()
+      : null;
+  return {
+    id: row.id,
+    email: row.email,
+    name,
+    organization,
+    plan: row.plan || "free",
+  };
+}
+
 async function getMe(req, res, next) {
   try {
-    let email = req.user.email;
-    if (!email) {
-      const { rows } = await pool.query("SELECT id, email FROM users WHERE id = $1 LIMIT 1", [req.user.id]);
-      const row = rows[0];
-      if (!row) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      email = row.email;
+    const profile = await fetchUserProfile(req.user.id);
+    if (!profile) {
+      return res.status(404).json({ error: "User not found" });
     }
-    return res.json({ id: req.user.id, email });
+    return res.json(profile);
   } catch (error) {
     return next(error);
   }
 }
 
-module.exports = { signup, login, listApiKeys, createApiKey, deleteApiKey, getMe };
+async function changePassword(req, res, next) {
+  try {
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+      return res.status(400).json({ error: "currentPassword and newPassword are required" });
+    }
+    const policyErr = passwordPolicyError(newPassword);
+    if (policyErr) {
+      return res.status(400).json({ error: policyErr });
+    }
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ error: "New password must be different from your current password" });
+    }
+
+    const { rows } = await pool.query(
+      "SELECT id, password_hash FROM users WHERE id = $1 LIMIT 1",
+      [req.user.id]
+    );
+    const user = rows[0];
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) {
+      return res.status(400).json({ error: "Current password is incorrect" });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, req.user.id]);
+
+    return res.json({ ok: true });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateMe(req, res, next) {
+  try {
+    const { name, organization } = req.body;
+    if (name === undefined && organization === undefined) {
+      return res.status(400).json({ error: "Provide at least one of: name, organization" });
+    }
+
+    const sets = [];
+    const values = [];
+    let i = 1;
+
+    if (name !== undefined) {
+      sets.push(`display_name = $${i}`);
+      const v = name === null ? null : String(name).trim().slice(0, 200);
+      values.push(v === "" ? null : v);
+      i += 1;
+    }
+    if (organization !== undefined) {
+      sets.push(`organization = $${i}`);
+      const v = organization === null ? null : String(organization).trim().slice(0, 200);
+      values.push(v === "" ? null : v);
+      i += 1;
+    }
+
+    values.push(req.user.id);
+    await pool.query(`UPDATE users SET ${sets.join(", ")} WHERE id = $${i}`, values);
+
+    const profile = await fetchUserProfile(req.user.id);
+    if (!profile) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    return res.json(profile);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+module.exports = {
+  signup,
+  login,
+  listApiKeys,
+  createApiKey,
+  deleteApiKey,
+  getMe,
+  updateMe,
+  changePassword,
+};

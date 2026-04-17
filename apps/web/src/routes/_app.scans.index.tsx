@@ -1,15 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { Search, Filter, Inbox, ScanSearch, SlidersHorizontal } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { ScanRow } from "@/components/dashboard/ScanRow";
 import { SectionHeader } from "@/components/ui-ext/SectionHeader";
 import { EmptyState } from "@/components/ui-ext/EmptyState";
 import { Shimmer } from "@/components/ui-ext/Skeleton";
-import { getScanHistory } from "@/lib/api";
-import { apiScanToUiScan } from "@/lib/scan-adapter";
+import { useScanHistoryQuery } from "@/features/scan/hooks";
+import { getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
 import type { ScanStatus } from "@/lib/mock-data";
 import type { Scan } from "@/lib/mock-data";
+import { scans as demoScans } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/scans/")({
@@ -26,31 +27,15 @@ const filters: { label: string; value: ScanStatus | "all" }[] = [
 ];
 
 function ScansList() {
-  const [scans, setScans] = useState<Scan[]>([]);
-  const [listLoading, setListLoading] = useState(true);
-  const [listError, setListError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<ScanStatus | "all">("all");
   const [loading, setLoading] = useState(false);
+  const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
+  const historyQuery = useScanHistoryQuery({ page: 1, limit: 50, enabled: !liveDemo });
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setListLoading(true);
-      setListError(null);
-      try {
-        const res = await getScanHistory({ page: 1, limit: 50 });
-        if (!cancelled) setScans((res.data || []).map(apiScanToUiScan));
-      } catch (e) {
-        if (!cancelled) setListError(e instanceof Error ? e.message : "Failed to load");
-      } finally {
-        if (!cancelled) setListLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const scans: Scan[] = liveDemo ? demoScans : (historyQuery.data ?? []);
+  const listLoading = liveDemo ? false : historyQuery.isPending;
+  const listError = liveDemo ? null : historyQuery.isError ? historyQuery.error.message : null;
 
   const results = useMemo(() => {
     return scans.filter((s) => {
@@ -68,7 +53,9 @@ function ScansList() {
         description={
           listError
             ? listError
-            : "Search and filter every authenticity report from your MediaAuth API."
+            : liveDemo
+              ? "Sample scan list for the live demo — not your account data."
+              : "Search and filter every authenticity report from your MediaAuth API."
         }
         action={
           <Link

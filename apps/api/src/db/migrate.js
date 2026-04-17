@@ -16,6 +16,12 @@ async function runMigrations() {
     );
   `);
 
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS organization TEXT`);
+  await pool.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'`
+  );
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS api_keys (
       id UUID PRIMARY KEY,

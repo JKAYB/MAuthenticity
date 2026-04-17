@@ -1,14 +1,21 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, isRedirect, redirect } from "@tanstack/react-router";
 import { AuthShell } from "./login";
+import { prefetchMe } from "@/features/auth/hooks";
 import { getToken } from "@/lib/auth-storage";
 
 export const Route = createFileRoute("/signup")({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
   }),
-  beforeLoad: () => {
+  beforeLoad: async () => {
     if (typeof window === "undefined") return;
-    if (getToken()) throw redirect({ to: "/dashboard" });
+    if (!getToken()) return;
+    try {
+      await prefetchMe();
+      throw redirect({ to: "/dashboard" });
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+    }
   },
   head: () => ({
     meta: [

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { ArrowRight, ShieldCheck, Sparkles, Activity, Lock, Zap } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { enableLiveDemo } from "@/lib/demo-mode";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -93,6 +94,7 @@ function Landing() {
           </Link>
           <Link
             to="/dashboard"
+            onClick={() => enableLiveDemo()}
             className="inline-flex h-11 items-center rounded-lg border border-border bg-card/60 px-5 text-sm font-medium backdrop-blur transition hover:bg-card"
           >
             View live demo
@@ -133,7 +135,7 @@ function Landing() {
                   </div>
                 ))}
               </div>
-              <div className="mt-4 h-32 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 ring-1 ring-border" />
+              {/* <div className="mt-4 h-32 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 ring-1 ring-border" /> */}
             </div>
           </div>
         </motion.div>

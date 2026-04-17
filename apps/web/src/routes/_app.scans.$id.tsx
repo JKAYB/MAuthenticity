@@ -10,11 +10,11 @@ import {
   ListChecks,
   AlertTriangle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { StatusBadge } from "@/components/ui-ext/StatusBadge";
-import { getScanById } from "@/lib/api";
-import { apiScanToUiScan } from "@/lib/scan-adapter";
-import { timeAgo, type Scan } from "@/lib/mock-data";
+import { useScanByIdQuery } from "@/features/scan/hooks";
+import { getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
+import { scans as demoScans, timeAgo, type Scan } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/scans/$id")({
@@ -40,36 +40,40 @@ export const Route = createFileRoute("/_app/scans/$id")({
 
 function ScanDetail() {
   const { id } = Route.useParams();
-  const [scan, setScan] = useState<Scan | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
+  const rowQuery = useScanByIdQuery(id, !liveDemo);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setNotFound(false);
-      setLoadError(null);
-      try {
-        const row = await getScanById(id);
-        if (!cancelled) setScan(apiScanToUiScan(row));
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to load scan";
-        if (
-          msg.toLowerCase().includes("not found") ||
-          msg.toLowerCase().includes("scan not found")
-        ) {
-          if (!cancelled) setNotFound(true);
-        } else if (!cancelled) setLoadError(msg);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
+  const demoScan = useMemo(
+    () => (liveDemo ? demoScans.find((s) => s.id === id) ?? null : null),
+    [liveDemo, id],
+  );
+
+  const { scan, loading, notFound, loadError } = useMemo(() => {
+    if (liveDemo) {
+      return {
+        scan: demoScan,
+        loading: false,
+        notFound: !demoScan,
+        loadError: null as string | null,
+      };
+    }
+    if (rowQuery.isPending) {
+      return { scan: null, loading: true, notFound: false, loadError: null };
+    }
+    if (rowQuery.isError) {
+      const msg = rowQuery.error.message;
+      const nf =
+        msg.toLowerCase().includes("not found") ||
+        msg.toLowerCase().includes("scan not found");
+      return { scan: null, loading: false, notFound: nf, loadError: nf ? null : msg };
+    }
+    return {
+      scan: rowQuery.data ?? null,
+      loading: false,
+      notFound: false,
+      loadError: null,
     };
-  }, [id]);
+  }, [liveDemo, demoScan, rowQuery.isPending, rowQuery.isError, rowQuery.error, rowQuery.data]);
 
   if (loading) {
     return (

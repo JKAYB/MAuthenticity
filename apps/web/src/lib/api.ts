@@ -1,5 +1,13 @@
+import { meQueryKey } from "@/features/auth/queryKeys";
+import { isLiveDemo } from "@/lib/demo-mode";
 import { clearToken, getToken, setToken } from "./auth-storage";
+import { getRouterQueryClient } from "./queryClient";
 
+/**
+ * HTTP helpers: `apiBase()` + `apiFetch` / `apiJson` attach `Authorization` when a token exists,
+ * default JSON headers for bodies, and parse responses safely. Use `apiFetch` for multipart uploads.
+ * Live demo mode blocks `apiFetch` (no authenticated API traffic); login/signup use raw `fetch` below.
+ */
 export function apiBase(): string {
   const raw = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
   return String(raw).replace(/\/+$/, "");
@@ -18,6 +26,11 @@ async function parseJson(res: Response): Promise<unknown> {
 }
 
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  if (isLiveDemo()) {
+    throw new Error(
+      "Live demo is active — API requests are disabled. Exit demo in the top banner to use your workspace.",
+    );
+  }
   const token = getToken();
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -25,7 +38,14 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     headers.set("Content-Type", "application/json");
   }
   const res = await fetch(`${apiBase()}${path}`, { ...init, headers });
-  if (res.status === 401) clearToken();
+  if (res.status === 401) {
+    clearToken();
+    try {
+      getRouterQueryClient().removeQueries({ queryKey: meQueryKey });
+    } catch {
+      /* QueryClient not bound yet (e.g. tests) */
+    }
+  }
   return res;
 }
 
@@ -63,8 +83,36 @@ export async function signupRequest(email: string, password: string): Promise<vo
   if (!res.ok) throw new Error(data.error || "Signup failed");
 }
 
-export async function getMe(): Promise<{ id: string; email: string }> {
-  return apiJson<{ id: string; email: string }>("/me");
+export type MeResponse = {
+  id: string;
+  email: string;
+  name: string | null;
+  organization: string | null;
+  plan: string;
+};
+
+export async function getMe(): Promise<MeResponse> {
+  return apiJson<MeResponse>("/me");
+}
+
+export async function updateProfile(body: {
+  name?: string | null;
+  organization?: string | null;
+}): Promise<MeResponse> {
+  return apiJson<MeResponse>("/me", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function changePassword(body: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ ok: boolean }> {
+  return apiJson<{ ok: boolean }>("/me/password", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
 }
 
 export type ApiScanRow = {

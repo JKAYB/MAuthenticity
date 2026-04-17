@@ -5,18 +5,21 @@ import {
   ScanSearch,
   History,
   Settings,
-  Bell,
   Search,
   Menu,
   X,
   LogOut,
   Sparkles,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/Logo";
-import { clearToken } from "@/lib/auth-storage";
-import { getMe } from "@/lib/api";
+import { NotificationBell } from "@/components/layout/NotificationBell";
+import { getToken } from "@/lib/auth-storage";
+import { useLogout, useMe } from "@/features/auth/hooks";
+import { disableLiveDemo, getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
+import { user as demoUser } from "@/lib/mock-data";
+import { displayNameFromMe, initialsFromDisplayName } from "@/lib/user-display";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -24,13 +27,6 @@ const nav = [
   { to: "/scans", label: "History", icon: History },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
-
-function initialsFromEmail(email: string) {
-  const local = email.split("@")[0] || "?";
-  const parts = local.split(/[._-]/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return local.slice(0, 2).toUpperCase() || "?";
-}
 
 function SidebarContent({
   pathname,
@@ -54,8 +50,8 @@ function SidebarContent({
           Workspace
         </div>
         {nav.map((item) => {
-          const active =
-            pathname === item.to || (item.to !== "/dashboard" && pathname.startsWith(item.to));
+          // Exact match or nested route; `/scans` must not match prefix `/scan`.
+          const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
           const Icon = item.icon;
           return (
             <Link
@@ -100,18 +96,27 @@ function SidebarContent({
       </div>
 
       <div className="border-t border-border/60 p-3">
-        <div className="flex items-center gap-3 rounded-lg p-2 hover:bg-sidebar-accent">
-          <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-semibold text-primary-foreground">
-            {profile?.initials ?? "—"}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">{profile?.name ?? "…"}</div>
-            <div className="truncate text-xs text-muted-foreground">{profile?.email ?? ""}</div>
-          </div>
+        <div className="flex items-center gap-1">
+          <Link
+            to="/profile"
+            onClick={onMobileNavClick}
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-sidebar-accent",
+              pathname === "/profile" && "bg-sidebar-accent ring-1 ring-inset ring-primary/25",
+            )}
+          >
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-semibold text-primary-foreground">
+              {profile?.initials ?? "—"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium">{profile?.name ?? "…"}</div>
+              <div className="truncate text-xs text-muted-foreground">{profile?.email ?? ""}</div>
+            </div>
+          </Link>
           <button
             type="button"
             onClick={onLogout}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-background hover:text-foreground"
+            className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-background hover:text-foreground"
             aria-label="Sign out"
           >
             <LogOut className="h-4 w-4" />
@@ -126,35 +131,43 @@ export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [profile, setProfile] = useState<{ name: string; email: string; initials: string } | null>(
-    null,
-  );
   const isLoading = useRouterState({ select: (s) => s.isLoading });
+  const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
+  const meQuery = useMe();
+  const logout = useLogout();
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const me = await getMe();
-        if (!cancelled) {
-          setProfile({
-            email: me.email,
-            name: me.email.split("@")[0] || "User",
-            initials: initialsFromEmail(me.email),
-          });
-        }
-      } catch {
-        if (!cancelled) setProfile(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const profile = useMemo(() => {
+    if (liveDemo) {
+      return {
+        email: demoUser.email,
+        name: demoUser.name,
+        initials: demoUser.initials,
+      };
+    }
+    if (meQuery.isSuccess && meQuery.data) {
+      const me = meQuery.data;
+      return {
+        email: me.email,
+        name: displayNameFromMe(me),
+        initials: initialsFromDisplayName(me.name, me.email),
+      };
+    }
+    return null;
+  }, [liveDemo, meQuery.isSuccess, meQuery.data]);
+
+  const exitLiveDemo = () => {
+    disableLiveDemo();
+    setMobileOpen(false);
+    if (!getToken()) {
+      navigate({ to: "/" });
+      return;
+    }
+    navigate({ to: "/dashboard" });
+  };
 
   const onLogout = () => {
-    clearToken();
-    navigate({ to: "/login" });
+    disableLiveDemo();
+    logout();
   };
 
   return (
@@ -209,6 +222,20 @@ export function AppLayout() {
       </AnimatePresence>
 
       <div className="lg:pl-64">
+        {liveDemo && (
+          <div className="sticky top-0 z-30 border-b border-primary/30 bg-gradient-to-r from-primary/15 to-accent/10 px-4 py-2 text-center text-xs sm:text-sm">
+            <span className="text-muted-foreground">You’re viewing a </span>
+            <span className="font-semibold text-foreground">live demo</span>
+            <span className="text-muted-foreground"> with sample data — not your account. </span>
+            <button
+              type="button"
+              onClick={exitLiveDemo}
+              className="font-semibold text-primary underline-offset-2 hover:underline"
+            >
+              Exit demo
+            </button>
+          </div>
+        )}
         {/* Topbar */}
         <header className="sticky top-0 z-20 border-b border-border/60 bg-background/70 backdrop-blur-xl">
           <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
@@ -230,34 +257,13 @@ export function AppLayout() {
               </kbd>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <button className="relative rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground">
-                <Bell className="h-4 w-4" />
-                <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
-              </button>
-              <Link
-                to="/scan"
-                className="hidden items-center gap-1.5 rounded-lg bg-gradient-to-br from-primary to-accent px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] transition hover:scale-[1.02] active:scale-[0.98] sm:inline-flex"
-              >
-                <ScanSearch className="h-3.5 w-3.5" />
-                New scan
-              </Link>
+              <NotificationBell />
             </div>
           </div>
         </header>
 
-        {/* Page content with route transitions */}
         <main className="relative px-4 py-6 sm:px-6 lg:px-8">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+          <Outlet />
         </main>
       </div>
 

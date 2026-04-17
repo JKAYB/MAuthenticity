@@ -1,16 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { ScanSearch, ShieldCheck, ShieldAlert, Activity, Gauge, Inbox } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ActivityChart } from "@/components/dashboard/ActivityChart";
 import { ScanRow } from "@/components/dashboard/ScanRow";
 import { SectionHeader } from "@/components/ui-ext/SectionHeader";
 import { EmptyState } from "@/components/ui-ext/EmptyState";
-import { getScanHistory } from "@/lib/api";
-import { apiScanToUiScan } from "@/lib/scan-adapter";
+import { useScanHistoryQuery } from "@/features/scan/hooks";
+import { getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
 import type { Scan } from "@/lib/mock-data";
-import { metrics as demoMetrics, user as demoUser } from "@/lib/mock-data";
+import { metrics as demoMetrics, scans as demoScans, user as demoUser } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — MediaAuth" }] }),
@@ -20,28 +20,12 @@ export const Route = createFileRoute("/_app/dashboard")({
 const icons = [ShieldCheck, ShieldAlert, Gauge, Activity];
 
 function Dashboard() {
-  const [scans, setScans] = useState<Scan[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
+  const historyQuery = useScanHistoryQuery({ page: 1, limit: 10, enabled: !liveDemo });
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await getScanHistory({ page: 1, limit: 10 });
-        if (!cancelled) setScans((res.data || []).map(apiScanToUiScan));
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load scans");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const scans: Scan[] = liveDemo ? demoScans.slice(0, 5) : (historyQuery.data ?? []);
+  const loading = liveDemo ? false : historyQuery.isPending;
+  const error = liveDemo ? null : historyQuery.isError ? historyQuery.error.message : null;
 
   const recent = scans.slice(0, 5);
 
@@ -58,7 +42,7 @@ function Dashboard() {
     ];
   }, [scans]);
 
-  const displayMetrics = scans.length ? liveMetrics : demoMetrics;
+  const displayMetrics = liveDemo ? demoMetrics : scans.length ? liveMetrics : demoMetrics;
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -75,10 +59,12 @@ function Dashboard() {
               {demoUser.org} · {demoUser.plan}
             </div>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-              Welcome back.
+              {liveDemo ? "Welcome to the demo." : "Welcome back."}
             </h1>
             <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-              {error ? (
+              {liveDemo ? (
+                "Sample workspace data below — use Exit demo in the banner to return to your account."
+              ) : error ? (
                 <span className="text-destructive">{error}</span>
               ) : loading ? (
                 "Loading your latest scan activity…"
@@ -172,7 +158,11 @@ function Dashboard() {
         <SectionHeader
           eyebrow="Activity"
           title="Recent scans"
-          description="Your most recent authenticity reports from the API."
+          description={
+            liveDemo
+              ? "Sample reports for the live demo — not from your API."
+              : "Your most recent authenticity reports from the API."
+          }
           action={
             <Link to="/scans" className="text-sm font-medium text-primary hover:underline">
               View all →
