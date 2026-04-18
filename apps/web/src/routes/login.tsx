@@ -93,7 +93,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
           <Link
             to="/"
             aria-label="MediaAuth home"
-            className="inline-flex w-fit rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+            className="inline-flex w-fit touch-manipulation rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent] cursor-pointer"
           >
             <Logo />
           </Link>
@@ -133,7 +133,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
             <Link
               to="/"
               aria-label="MediaAuth home"
-              className="inline-flex w-fit rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex w-fit touch-manipulation rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
             >
               <Logo />
             </Link>

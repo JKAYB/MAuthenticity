@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, ShieldCheck, Sparkles, Activity, Lock, Zap } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import LiquidEther from "@/components/liquid-ether/LiquidEther";
+import { useFluidEtherEnabled } from "@/hooks/use-fluid-ether-enabled";
 import { enableLiveDemo } from "@/lib/demo-mode";
 
 export const Route = createFileRoute("/")({
@@ -20,28 +21,37 @@ export const Route = createFileRoute("/")({
 });
 
 function Landing() {
+  const fluidEtherEnabled = useFluidEtherEnabled();
+
   return (
     <div className="relative min-h-screen overflow-hidden select-none">
       <div className="grid-bg absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
       <div className="pointer-events-none absolute inset-0 z-[1] opacity-[0.55] [mask-image:radial-gradient(ellipse_at_top,black,transparent_72%)]">
-        <LiquidEther
-          colors={["#6A7CFF", "#70E0F8", "#B05CFF"]}
-          mouseForce={15}
-          cursorSize={130}
-          isViscous={false}
-          viscous={30}
-          iterationsViscous={32}
-          iterationsPoisson={32}
-          resolution={0.5}
-          isBounce={false}
-          autoDemo
-          autoSpeed={0.65}
-          autoIntensity={2.2}
-          takeoverDuration={0.2}
-          autoResumeDelay={3000}
-          autoRampDuration={0.6}
-          className="!absolute inset-0"
-        />
+        {fluidEtherEnabled ? (
+          <LiquidEther
+            colors={["#6A7CFF", "#70E0F8", "#B05CFF"]}
+            mouseForce={15}
+            cursorSize={130}
+            isViscous={false}
+            viscous={30}
+            iterationsViscous={32}
+            iterationsPoisson={32}
+            resolution={0.5}
+            isBounce={false}
+            autoDemo
+            autoSpeed={0.65}
+            autoIntensity={2.2}
+            takeoverDuration={0.2}
+            autoResumeDelay={3000}
+            autoRampDuration={0.6}
+            className="!absolute inset-0"
+          />
+        ) : (
+          <div
+            className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,color-mix(in_oklab,var(--primary)_35%,transparent),transparent_55%),radial-gradient(90%_60%_at_100%_40%,color-mix(in_oklab,var(--accent)_28%,transparent),transparent_50%),radial-gradient(80%_50%_at_0%_60%,oklch(0.55_0.2_280_/_0.2),transparent_55%)]"
+            aria-hidden
+          />
+        )}
       </div>
       <div className="float pointer-events-none absolute -left-32 top-20 h-72 w-72 rounded-full bg-primary/30 blur-3xl" />
       <div
@@ -53,7 +63,7 @@ function Landing() {
         <Link
           to="/"
           aria-label="MediaAuth home"
-          className="inline-flex w-fit rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex w-fit touch-manipulation rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
         >
           <Logo />
         </Link>
@@ -214,7 +224,7 @@ function Landing() {
           <Link
             to="/"
             aria-label="MediaAuth home"
-            className="inline-flex w-fit rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex w-fit touch-manipulation rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
           >
             <Logo compact />
           </Link>

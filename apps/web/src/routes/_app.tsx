@@ -2,11 +2,15 @@ import { createFileRoute, isRedirect, redirect } from "@tanstack/react-router";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { prefetchMe } from "@/features/auth/hooks";
 import { getToken } from "@/lib/auth-storage";
-import { isLiveDemo } from "@/lib/demo-mode";
+import { disableLiveDemo, isLiveDemo } from "@/lib/demo-mode";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ location }) => {
     if (typeof window === "undefined") return;
+    // Authenticated app routes should never stay on marketing demo mock data.
+    if (getToken() && isLiveDemo()) {
+      disableLiveDemo();
+    }
     if (isLiveDemo()) return;
     if (!getToken()) {
       throw redirect({

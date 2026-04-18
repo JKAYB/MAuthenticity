@@ -7,6 +7,7 @@ import { ActivityChart } from "@/components/dashboard/ActivityChart";
 import { ScanRow } from "@/components/dashboard/ScanRow";
 import { SectionHeader } from "@/components/ui-ext/SectionHeader";
 import { EmptyState } from "@/components/ui-ext/EmptyState";
+import { useMe } from "@/features/auth/hooks";
 import { useScanHistoryQuery } from "@/features/scan/hooks";
 import { getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
 import type { Scan } from "@/lib/mock-data";
@@ -19,11 +20,22 @@ export const Route = createFileRoute("/_app/dashboard")({
 
 const icons = [ShieldCheck, ShieldAlert, Gauge, Activity];
 
+const emptyLiveMetrics = [
+  { label: "Total scans", value: 0, delta: "—", trend: "up" as const },
+  { label: "Completed", value: 0, delta: "—", trend: "up" as const },
+  { label: "Pending", value: 0, delta: "—", trend: "down" as const },
+  { label: "Flagged", value: 0, delta: "—", trend: "up" as const },
+];
+
 function Dashboard() {
   const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
+  const meQuery = useMe();
   const historyQuery = useScanHistoryQuery({ page: 1, limit: 10, enabled: !liveDemo });
 
-  const scans: Scan[] = liveDemo ? demoScans.slice(0, 5) : (historyQuery.data ?? []);
+  const scans: Scan[] = useMemo(
+    () => (liveDemo ? demoScans.slice(0, 5) : (historyQuery.data ?? [])),
+    [liveDemo, historyQuery.data],
+  );
   const loading = liveDemo ? false : historyQuery.isPending;
   const error = liveDemo ? null : historyQuery.isError ? historyQuery.error.message : null;
 
@@ -42,7 +54,21 @@ function Dashboard() {
     ];
   }, [scans]);
 
-  const displayMetrics = liveDemo ? demoMetrics : scans.length ? liveMetrics : demoMetrics;
+  const displayMetrics = liveDemo
+    ? demoMetrics
+    : loading
+      ? emptyLiveMetrics
+      : scans.length
+        ? liveMetrics
+        : emptyLiveMetrics;
+
+  const orgEyebrow = liveDemo
+    ? `${demoUser.org} · ${demoUser.plan}`
+    : meQuery.isSuccess && meQuery.data
+      ? `${meQuery.data.organization?.trim() || "Workspace"} · ${meQuery.data.plan}`
+      : loading || meQuery.isPending
+        ? "Loading workspace…"
+        : "Workspace";
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -56,7 +82,7 @@ function Dashboard() {
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
-              {demoUser.org} · {demoUser.plan}
+              {orgEyebrow}
             </div>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
               {liveDemo ? "Welcome to the demo." : "Welcome back."}

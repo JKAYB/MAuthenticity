@@ -8,7 +8,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useSyncExternalStore } from "react";
 import { clearToken, getTokenSnapshot, subscribeToken } from "@/lib/auth-storage";
-import { getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
+import { disableLiveDemo, getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
 import {
   changePassword as changePasswordRequest,
   getMe,
@@ -58,6 +58,8 @@ export function useLogin(
     mutationFn: ({ email, password }: LoginVars) => loginRequest(email, password),
     ...options,
     onSuccess: async (data, variables, onMutateResult, context) => {
+      // Marketing "live demo" must not carry into a real session — otherwise /me and scans stay on mock data.
+      disableLiveDemo();
       await qc.invalidateQueries({ queryKey: meQueryKey });
       await options?.onSuccess?.(data, variables, onMutateResult, context);
     },

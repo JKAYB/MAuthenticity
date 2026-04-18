@@ -15,7 +15,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/Logo";
 import { NotificationBell } from "@/components/layout/NotificationBell";
-import { getToken } from "@/lib/auth-storage";
+import { getToken, getTokenSnapshot, subscribeToken } from "@/lib/auth-storage";
 import { useLogout, useMe } from "@/features/auth/hooks";
 import { disableLiveDemo, getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
 import { user as demoUser } from "@/lib/mock-data";
@@ -30,22 +30,27 @@ const nav = [
 
 function SidebarContent({
   pathname,
+  logoTo,
+  logoAriaLabel,
   onMobileNavClick,
   onLogout,
   profile,
 }: {
   pathname: string;
+  logoTo: "/dashboard" | "/";
+  logoAriaLabel: string;
   onMobileNavClick?: () => void;
   onLogout: () => void;
   profile: { name: string; email: string; initials: string } | null;
 }) {
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col select-none lg:select-auto">
       <div className="px-5 py-5">
         <Link
-          to="/"
-          aria-label="MediaAuth home"
-          className="inline-flex w-fit rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+          to={logoTo}
+          aria-label={logoAriaLabel}
+          onClick={() => onMobileNavClick?.()}
+          className="inline-flex w-fit touch-manipulation rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
         >
           <Logo />
         </Link>
@@ -65,7 +70,7 @@ function SidebarContent({
               to={item.to}
               onClick={onMobileNavClick}
               className={cn(
-                "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                "group relative flex touch-manipulation items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all [-webkit-tap-highlight-color:transparent]",
                 active
                   ? "text-foreground"
                   : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
@@ -107,7 +112,7 @@ function SidebarContent({
             to="/profile"
             onClick={onMobileNavClick}
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-sidebar-accent",
+              "flex min-w-0 flex-1 touch-manipulation items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-sidebar-accent [-webkit-tap-highlight-color:transparent]",
               pathname === "/profile" && "bg-sidebar-accent ring-1 ring-inset ring-primary/25",
             )}
           >
@@ -139,6 +144,9 @@ export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isLoading = useRouterState({ select: (s) => s.isLoading });
   const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
+  const hasToken = useSyncExternalStore(subscribeToken, getTokenSnapshot, () => null);
+  const logoTo = hasToken ? "/dashboard" : "/";
+  const logoAriaLabel = hasToken ? "Go to dashboard" : "MediaAuth home";
   const meQuery = useMe();
   const logout = useLogout();
 
@@ -192,7 +200,13 @@ export function AppLayout() {
 
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-sidebar-border bg-sidebar/70 backdrop-blur-xl lg:block">
-        <SidebarContent pathname={location.pathname} profile={profile} onLogout={onLogout} />
+        <SidebarContent
+          pathname={location.pathname}
+          logoTo={logoTo}
+          logoAriaLabel={logoAriaLabel}
+          profile={profile}
+          onLogout={onLogout}
+        />
       </aside>
 
       {/* Mobile sidebar */}
@@ -215,6 +229,8 @@ export function AppLayout() {
             >
               <SidebarContent
                 pathname={location.pathname}
+                logoTo={logoTo}
+                logoAriaLabel={logoAriaLabel}
                 profile={profile}
                 onMobileNavClick={() => setMobileOpen(false)}
                 onLogout={() => {
