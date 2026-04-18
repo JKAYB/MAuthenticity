@@ -1,8 +1,9 @@
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
-const { getScanObjectStorage } = require("@media-auth/scan-storage");
+const { getScanObjectStorage, describeObjectStorageReadiness } = require("@media-auth/scan-storage");
+const { processScanById, markFailed } = require("@media-auth/worker/process-scan");
 const { pool } = require("../db/pool");
-const { scanQueue } = require("../queues/scan.queue");
+const { getScanExecutionMode } = require("../config/scanExecution");
 
 const SCAN_SELECT_FIELDS = `id, filename, mime_type, file_size_bytes, status, confidence, is_ai_generated,
             result_payload, error_message, summary, source_type, source_url, storage_key, storage_provider, detection_provider,
@@ -17,6 +18,63 @@ const defaultJobOpts = {
     delay: 1000
   }
 };
+
+let loggedExecutionMode = false;
+
+function logExecutionModeOnce() {
+  if (loggedExecutionMode) {
+    return;
+  }
+  loggedExecutionMode = true;
+  const mode = getScanExecutionMode();
+  console.info(
+    `[scan-api] SCAN_EXECUTION_MODE=${mode} (${mode === "direct" ? "inline in API" : "BullMQ scan-jobs + worker"})`
+  );
+}
+
+function assertObjectStorageReadyForDirect() {
+  const os = describeObjectStorageReadiness();
+  if (!os.ok) {
+    throw new Error(`Object storage not configured for direct scan mode: ${os.issues.join("; ")}`);
+  }
+}
+
+/**
+ * After row insert: enqueue or run inline based on SCAN_EXECUTION_MODE.
+ * @returns {Promise<{ id: string; status: string }>}
+ */
+async function dispatchScanAfterInsert({ scanId, userId }) {
+  logExecutionModeOnce();
+  const mode = getScanExecutionMode();
+
+  if (mode === "direct") {
+    assertObjectStorageReadyForDirect();
+    console.info(`[scan-api] direct processing start scan=${scanId} user=${userId}`);
+    try {
+      await processScanById({
+        pool,
+        scanId,
+        userId,
+        logPrefix: "[scan-api-direct]"
+      });
+      console.info(`[scan-api] direct processing completed scan=${scanId}`);
+      return { id: scanId, status: "completed" };
+    } catch (err) {
+      const msg = err && err.message ? err.message : "Scan processing failed";
+      await markFailed(pool, { scanId, errorMessage: msg });
+      console.error(`[scan-api] direct processing failed scan=${scanId}: ${msg}`);
+      return { id: scanId, status: "failed" };
+    }
+  }
+
+  const { scanQueue } = require("../queues/scan.queue");
+  await scanQueue.add("scan-media", queuePayload(scanId, userId), {
+    jobId: scanId,
+    ...defaultJobOpts
+  });
+  console.info(`[scan-api] queue job added scan=${scanId} user=${userId} queue=scan-jobs`);
+  return { id: scanId, status: "pending" };
+}
 
 async function createScanFromUpload({ userId, file }) {
   const scanId = uuidv4();
@@ -40,12 +98,9 @@ async function createScanFromUpload({ userId, file }) {
     [scanId, userId, file.originalname, file.mimetype, file.size, saved.storageKey, saved.storageProvider]
   );
 
-  await scanQueue.add("scan-media", queuePayload(scanId, userId), {
-    jobId: scanId,
-    ...defaultJobOpts
-  });
+  console.info(`[scan-api] scan row created scan=${scanId} user=${userId} source=upload`);
 
-  return { id: scanId, status: "pending" };
+  return dispatchScanAfterInsert({ scanId, userId });
 }
 
 function filenameFromUrl(urlString) {
@@ -70,12 +125,9 @@ async function createScanFromUrl({ userId, url }) {
     [scanId, userId, filename, url]
   );
 
-  await scanQueue.add("scan-media", queuePayload(scanId, userId), {
-    jobId: scanId,
-    ...defaultJobOpts
-  });
+  console.info(`[scan-api] scan row created scan=${scanId} user=${userId} source=url`);
 
-  return { id: scanId, status: "pending" };
+  return dispatchScanAfterInsert({ scanId, userId });
 }
 
 async function getScanById({ scanId, userId }) {

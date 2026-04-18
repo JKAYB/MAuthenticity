@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@media-auth/scan-storage": "file:../../packages/scan-storage",
+    "@media-auth/worker": "file:../worker",
     "bcrypt": "^5.1.1",
     "bullmq": "^5.10.4",
     "cors": "^2.8.6",

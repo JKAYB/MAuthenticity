@@ -48,7 +48,8 @@ async function submitScanUpload(req, res, next) {
     }
 
     const scan = await createScanFromUpload({ userId: req.user.id, file: req.file });
-    return res.status(202).json(scan);
+    const statusCode = scan.status === "pending" ? 202 : 200;
+    return res.status(statusCode).json(scan);
   } catch (error) {
     return next(error);
   }
@@ -62,7 +63,8 @@ async function submitScanUrl(req, res, next) {
     }
 
     const scan = await createScanFromUrl({ userId: req.user.id, url: parsed.url });
-    return res.status(202).json(scan);
+    const statusCode = scan.status === "pending" ? 202 : 200;
+    return res.status(statusCode).json(scan);
   } catch (error) {
     return next(error);
   }

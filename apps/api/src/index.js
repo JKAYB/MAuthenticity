@@ -11,6 +11,15 @@ if (!os.ok) {
 }
 console.info(`[api] object_storage=${JSON.stringify({ provider: os.provider, ok: true })}`);
 
+const { getScanExecutionMode } = require("./config/scanExecution");
+const scanExecMode = getScanExecutionMode();
+console.info(`[api] SCAN_EXECUTION_MODE=${scanExecMode}`);
+if (scanExecMode === "queue") {
+  console.info(
+    "[api] Scan jobs use BullMQ (Redis) + worker. Without a worker, rows stay pending. Set SCAN_EXECUTION_MODE=direct to process in the API."
+  );
+}
+
 const { createApp } = require("./app");
 
 const port = Number(process.env.PORT || 4000);

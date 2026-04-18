@@ -1,7 +1,6 @@
 const { UnrecoverableError } = require("bullmq");
 const { pool } = require("../db/pool");
-const { runDetection } = require("../detection");
-const { loadScanRow, resolveMediaInput } = require("./scanSource");
+const { processScanById, markFailed, LOG: PROCESS_LOG } = require("./processScan");
 
 const LOG = "[scan-worker]";
 
@@ -14,45 +13,6 @@ function willRetryAfterFailure(job) {
   return job.attemptsMade + 1 < maxAttemptsFor(job);
 }
 
-async function markProcessing(scanId) {
-  await pool.query(
-    `UPDATE scans
-     SET status = 'processing', error_message = NULL, updated_at = NOW()
-     WHERE id = $1`,
-    [scanId]
-  );
-}
-
-async function markCompleted({ scanId, confidence, isAiGenerated, summary, resultPayload, detectionProvider }) {
-  await pool.query(
-    `UPDATE scans
-     SET is_ai_generated = $1,
-         confidence = $2,
-         summary = $3,
-         result_payload = $4,
-         error_message = NULL,
-         status = 'completed',
-         detection_provider = $6,
-         updated_at = NOW(),
-         completed_at = NOW()
-     WHERE id = $5`,
-    [isAiGenerated, confidence, summary, resultPayload, scanId, detectionProvider || null]
-  );
-}
-
-async function markFailed({ scanId, errorMessage }) {
-  await pool.query(
-    `UPDATE scans
-     SET status = 'failed',
-         error_message = $1,
-         summary = NULL,
-         updated_at = NOW(),
-         completed_at = NOW()
-     WHERE id = $2`,
-    [errorMessage, scanId]
-  );
-}
-
 /**
  * @param {import('bullmq').Job} job
  */
@@ -62,45 +22,22 @@ async function processScanJob(job) {
     throw new UnrecoverableError("Job payload missing scanId");
   }
 
-  const row = await loadScanRow(pool, scanId);
-  if (!row) {
-    throw new UnrecoverableError(`Scan row not found for id=${scanId}`);
-  }
-  if (row.status === "completed") {
-    console.info(`${LOG} skip job=${job.id} scan=${scanId} (already completed)`);
-    return { skipped: true, scanId };
-  }
-
   console.info(
     `${LOG} start job=${job.id} scan=${scanId} attempt=${job.attemptsMade + 1}/${maxAttemptsFor(job)}`
   );
 
-  await markProcessing(scanId);
+  const result = await processScanById({
+    pool,
+    scanId,
+    userId,
+    logPrefix: `${PROCESS_LOG} job=${job.id}`
+  });
 
-  /** @type {{ input: object; release: () => Promise<void> } | undefined} */
-  let resolved;
-  try {
-    resolved = await resolveMediaInput(row);
-    const detection = await runDetection(resolved.input, { scanId, userId: userId != null ? userId : null });
-
-    await markCompleted({
-      scanId,
-      confidence: detection.confidence,
-      isAiGenerated: detection.isAiGenerated,
-      summary: detection.summary,
-      resultPayload: detection.resultPayload,
-      detectionProvider: detection.providerId
-    });
-
-    console.info(
-      `${LOG} completed job=${job.id} scan=${scanId} provider=${detection.providerId} confidence=${detection.confidence} ai=${detection.isAiGenerated}`
-    );
-    return { scanId, confidence: detection.confidence };
-  } finally {
-    if (resolved) {
-      await resolved.release();
-    }
+  if (result.skipped) {
+    console.info(`${LOG} skip job=${job.id} scan=${scanId} (already completed)`);
   }
+
+  return result;
 }
 
 async function handleProcessorError(job, error) {
@@ -110,7 +47,7 @@ async function handleProcessorError(job, error) {
 
   if (error instanceof UnrecoverableError || error.name === "UnrecoverableError") {
     if (scanId) {
-      await markFailed({ scanId, errorMessage: message });
+      await markFailed(pool, { scanId, errorMessage: message });
     }
     const code = error && error.code ? String(error.code) : "";
     console.error(
@@ -130,7 +67,7 @@ async function handleProcessorError(job, error) {
   }
 
   if (scanId) {
-    await markFailed({ scanId, errorMessage: message });
+    await markFailed(pool, { scanId, errorMessage: message });
   }
   const code = error && error.code ? String(error.code) : "";
   console.error(

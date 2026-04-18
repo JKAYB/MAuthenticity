@@ -8,6 +8,7 @@ const { authMiddleware, requireUser } = require("./middleware/auth.middleware");
 const { apiKeyMiddleware } = require("./middleware/apikey.middleware");
 const { internalOpsMiddleware } = require("./middleware/internalOps.middleware");
 const { errorHandler, notFoundHandler } = require("./middleware/error.middleware");
+const { getScanExecutionMode } = require("./config/scanExecution");
 
 function createApp() {
   const app = express();
@@ -33,7 +34,7 @@ function createApp() {
     res.json({ ok: true });
   });
 
-  /** Liveness does not check dependencies; use `/ready` for DB + Redis. */
+  /** Liveness does not check dependencies; use `/ready` for DB (+ Redis when scans use the queue). */
   app.get("/ready", async (_req, res) => {
     const checks = { database: false, redis: false };
     try {
@@ -43,12 +44,17 @@ function createApp() {
     } catch {
       /* ignore */
     }
-    try {
-      const { connection: redisConnection } = require("./db/redis");
-      const pong = await redisConnection.ping();
-      checks.redis = pong === "PONG";
-    } catch {
-      /* ignore */
+    if (getScanExecutionMode() === "direct") {
+      checks.redis = true;
+      checks.redisSkipped = true;
+    } else {
+      try {
+        const { connection: redisConnection } = require("./db/redis");
+        const pong = await redisConnection.ping();
+        checks.redis = pong === "PONG";
+      } catch {
+        /* ignore */
+      }
     }
     const ok = checks.database && checks.redis;
     res.status(ok ? 200 : 503).json({ ok, ...checks });

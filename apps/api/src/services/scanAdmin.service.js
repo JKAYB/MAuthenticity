@@ -1,5 +1,9 @@
 const { pool } = require("../db/pool");
-const { scanQueue } = require("../queues/scan.queue");
+
+/** Lazy: avoid opening Redis/BullMQ at API boot when using SCAN_EXECUTION_MODE=direct. */
+function getScanQueue() {
+  return require("../queues/scan.queue").scanQueue;
+}
 
 const ADMIN_SCAN_FIELDS = `s.id, s.user_id, u.email AS user_email, s.filename, s.mime_type, s.file_size_bytes,
   s.status, s.confidence, s.is_ai_generated, s.result_payload, s.error_message, s.summary,
@@ -19,7 +23,7 @@ function queuePayload(scanId, userId) {
 }
 
 async function removeQueueJobIfPresent(jobId) {
-  const job = await scanQueue.getJob(jobId);
+  const job = await getScanQueue().getJob(jobId);
   if (job) {
     await job.remove({ removeChildren: true });
   }
@@ -30,7 +34,7 @@ async function removeQueueJobIfPresent(jobId) {
  * @param {string} userId
  */
 async function enqueueScanJob(scanId, userId) {
-  await scanQueue.add("scan-media", queuePayload(scanId, userId), {
+  await getScanQueue().add("scan-media", queuePayload(scanId, userId), {
     jobId: scanId,
     ...defaultJobOpts
   });
@@ -209,7 +213,7 @@ async function retryScanAdmin(scanId, opts = {}) {
     throw err;
   }
 
-  const job = await scanQueue.getJob(scanId);
+  const job = await getScanQueue().getJob(scanId);
   const gate = await assertJobNotActivelyRunning(job);
   if (!gate.ok) {
     const err = new Error(gate.message);
@@ -254,7 +258,7 @@ async function resetStuckProcessingScanAdmin(scanId, opts = {}) {
     throw err;
   }
 
-  const job = await scanQueue.getJob(scanId);
+  const job = await getScanQueue().getJob(scanId);
   const gate = await assertJobNotActivelyRunning(job);
   if (!gate.ok) {
     const err = new Error(gate.message);
