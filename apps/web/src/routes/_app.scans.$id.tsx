@@ -77,13 +77,15 @@ function ScanDetail() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-6xl py-20 text-center text-muted-foreground">Loading scan…</div>
+      <div className="mx-auto w-full max-w-6xl px-3 py-16 text-center text-muted-foreground sm:px-4 sm:py-20 md:px-6">
+        Loading scan…
+      </div>
     );
   }
 
   if (loadError) {
     return (
-      <div className="mx-auto max-w-md py-20 text-center">
+      <div className="mx-auto w-full max-w-md px-3 py-16 text-center sm:px-4 sm:py-20 md:px-6">
         <h2 className="font-display text-2xl font-semibold">Could not load scan</h2>
         <p className="mt-2 text-sm text-destructive">{loadError}</p>
         <Link to="/scans" className="mt-4 inline-block text-sm text-primary hover:underline">
@@ -95,7 +97,7 @@ function ScanDetail() {
 
   if (notFound || !scan) {
     return (
-      <div className="mx-auto max-w-md py-20 text-center">
+      <div className="mx-auto w-full max-w-md px-3 py-16 text-center sm:px-4 sm:py-20 md:px-6">
         <h2 className="font-display text-2xl font-semibold">Scan not found</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           It may have been deleted or you may not have access.
@@ -117,26 +119,31 @@ function ScanDetail() {
           : "from-primary/30 to-primary/0 ring-primary/40 text-primary";
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-5 overflow-x-hidden px-2 pb-28 sm:space-y-6 sm:px-4 sm:pb-12 md:px-6 md:pb-10">
+      <div className="flex min-w-0 flex-row items-center justify-between gap-2 sm:gap-4">
         <Link
           to="/scans"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          className="inline-flex min-w-0 flex-1 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground sm:flex-initial sm:max-w-none"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to history
+          <ArrowLeft className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 truncate">Back to history</span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 flex-row items-center gap-2 sm:gap-2">
           <button
             type="button"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card/60 px-3 text-sm hover:bg-card"
+            aria-label="Share"
+            className="inline-flex size-9 shrink-0 items-center justify-center gap-0 rounded-lg border border-border bg-card/60 text-sm hover:bg-card sm:h-9 sm:w-auto sm:min-w-0 sm:px-3 sm:gap-1.5"
           >
-            <Share2 className="h-4 w-4" /> Share
+            <Share2 className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="hidden sm:inline">Share</span>
           </button>
           <button
             type="button"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-primary to-accent px-3 text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)]"
+            aria-label="Export report"
+            className="inline-flex size-9 shrink-0 items-center justify-center gap-0 rounded-lg bg-gradient-to-br from-primary to-accent text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] sm:h-9 sm:w-auto sm:min-w-0 sm:px-3 sm:gap-1.5"
           >
-            <Download className="h-4 w-4" /> Export report
+            <Download className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="hidden sm:inline">Export report</span>
           </button>
         </div>
       </div>
@@ -146,55 +153,71 @@ function ScanDetail() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         className={cn(
-          "relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br p-6 backdrop-blur-xl elevated ring-1",
+          "relative min-w-0 overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br p-4 backdrop-blur-xl elevated ring-1 sm:p-6",
           verdictColor,
         )}
       >
-        <div className="grid gap-6 md:grid-cols-[1fr,auto] md:items-center">
-          <div>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <StatusBadge status={scan.status} />
-              {!liveDemo && rowQuery.isRefetching && scan.status === "pending" && (
-                <span className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
-                  Checking for results…
-                </span>
-              )}
-              <span className="font-mono text-xs text-muted-foreground">{scan.id}</span>
+        <div className="grid min-w-0 gap-4 sm:gap-6 md:grid-cols-[minmax(0,1fr),auto] md:items-center md:gap-6">
+          <div className="min-w-0">
+            <div className="mb-2 flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={scan.status} />
+                {!liveDemo && rowQuery.isRefetching && scan.status === "pending" && (
+                  <span className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+                    Checking for results…
+                  </span>
+                )}
+              </div>
+              {/* <span className="block w-full min-w-0 max-w-full break-all font-mono text-[11px] leading-snug text-muted-foreground/90 sm:inline sm:w-auto sm:text-xs">
+                {scan.id}
+              </span> */}
             </div>
-            <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+            <h1 className="break-words font-display text-lg font-semibold leading-tight tracking-tight sm:text-2xl md:text-3xl">
               {scan.title}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1.5 max-w-full text-xs leading-relaxed text-muted-foreground sm:text-sm">
               Scanned {timeAgo(scan.createdAt)} · {scan.kind.toUpperCase()} ·{" "}
               {scan.detections.length} signals
             </p>
           </div>
-          <ConfidenceRing value={scan.confidence} status={scan.status} />
+          <div className="flex justify-center pt-1 md:block md:justify-self-end md:pt-0">
+            <div className="origin-center scale-[0.88] sm:scale-100">
+              <ConfidenceRing value={scan.confidence} status={scan.status} />
+            </div>
+          </div>
         </div>
       </motion.div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid min-w-0 gap-5 sm:gap-6 lg:grid-cols-3">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.05 }}
-          className="rounded-2xl border border-border/60 bg-card/60 p-5 backdrop-blur-xl elevated lg:col-span-2"
+          className="min-w-0 rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-xl elevated sm:p-5 lg:col-span-2"
         >
-          <div className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="mb-3.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Media preview
           </div>
-          <div className="grid-bg relative aspect-video overflow-hidden rounded-xl bg-gradient-to-br from-muted/40 to-card ring-1 ring-border">
-            <div className="absolute inset-0 grid place-items-center">
-              <div className="text-center">
-                <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-card/80 ring-1 ring-border backdrop-blur">
-                  <FileText className="h-6 w-6 text-muted-foreground" />
+          <div className="grid-bg relative aspect-video w-full max-w-full min-w-0 overflow-hidden rounded-xl bg-gradient-to-br from-muted/40 to-card ring-1 ring-border">
+            <div
+              className={cn(
+                "absolute inset-0 grid place-items-center px-3 pb-2",
+                scan.status === "flagged" ? "pt-11 sm:pt-10" : "pt-2",
+              )}
+            >
+              <div className="w-full max-w-full min-w-0 text-center">
+                <div className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-card/80 ring-1 ring-border backdrop-blur sm:h-14 sm:w-14">
+                  <FileText className="h-5 w-5 text-muted-foreground sm:h-6 sm:w-6" />
                 </div>
-                <p className="mt-3 font-mono text-xs text-muted-foreground">{scan.title}</p>
+                <p className="mt-2.5 break-words px-1 font-mono text-[11px] leading-snug text-muted-foreground sm:mt-3 sm:text-xs">
+                  {scan.title}
+                </p>
               </div>
             </div>
             {scan.status === "flagged" && (
-              <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-md bg-destructive/20 px-2 py-1 text-xs text-destructive ring-1 ring-destructive/30 backdrop-blur">
-                <AlertTriangle className="h-3 w-3" /> Manipulation detected
+              <div className="absolute left-2 right-2 top-2 flex max-w-none items-center gap-1.5 rounded-md bg-destructive/20 px-2 py-1.5 text-[10px] leading-tight text-destructive ring-1 ring-destructive/30 backdrop-blur sm:left-4 sm:right-auto sm:top-4 sm:text-xs">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                <span className="min-w-0 break-words">Manipulation detected</span>
               </div>
             )}
           </div>
@@ -204,20 +227,24 @@ function ScanDetail() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="rounded-2xl border border-border/60 bg-card/60 p-5 backdrop-blur-xl elevated"
+          className="min-w-0 rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-xl elevated sm:p-5"
         >
-          <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            <ListChecks className="h-3.5 w-3.5" /> Signals
+          <div className="mb-3.5 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <ListChecks className="h-3.5 w-3.5 shrink-0" /> Signals
           </div>
           {scan.detections.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No signals yet — analysis in progress.</p>
+            <p className="max-w-full whitespace-normal break-words text-sm leading-relaxed text-muted-foreground">
+              No signals yet — analysis in progress.
+            </p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-3 sm:space-y-4">
               {scan.detections.map((d, i) => (
-                <li key={d.label}>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span>{d.label}</span>
-                    <span className="font-mono text-xs">{Math.round(d.score * 100)}%</span>
+                <li key={d.label} className="min-w-0">
+                  <div className="mb-1 flex min-w-0 items-start justify-between gap-2 text-sm">
+                    <span className="min-w-0 flex-1 break-words">{d.label}</span>
+                    <span className="shrink-0 font-mono text-xs tabular-nums">
+                      {Math.round(d.score * 100)}%
+                    </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                     <motion.div
@@ -245,36 +272,36 @@ function ScanDetail() {
         </motion.div>
       </div>
 
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-4 sm:space-y-4">
         <Accordion title="Metadata" icon={FileText} defaultOpen>
-          <dl className="grid gap-3 sm:grid-cols-2">
+          <dl className="grid min-w-0 gap-3 sm:grid-cols-2">
             {scan.metadata.map((m) => (
-              <div key={m.key} className="rounded-lg border border-border bg-input/30 px-3 py-2">
+              <div key={m.key} className="min-w-0 rounded-lg border border-border bg-input/30 px-3 py-2">
                 <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {m.key}
                 </dt>
-                <dd className="mt-0.5 font-mono text-sm">{m.value}</dd>
+                <dd className="mt-0.5 break-words font-mono text-xs sm:text-sm">{m.value}</dd>
               </div>
             ))}
           </dl>
         </Accordion>
 
         <Accordion title="Timeline" icon={Activity}>
-          <ol className="relative space-y-4 border-l border-border/80 pl-6">
+          <ol className="relative min-w-0 space-y-3 border-l border-border/80 pl-5 sm:space-y-4 sm:pl-6">
             {scan.timeline.map((t, i) => (
-              <li key={i} className="relative">
-                <span className="absolute -left-[27px] top-1.5 grid h-3 w-3 place-items-center">
+              <li key={i} className="relative min-w-0 pr-1">
+                <span className="absolute -left-[22px] top-1.5 grid h-3 w-3 place-items-center sm:-left-[27px]">
                   <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_var(--primary)]" />
                 </span>
-                <div className="font-mono text-xs text-muted-foreground">{t.time}</div>
-                <div className="text-sm">{t.event}</div>
+                <div className="font-mono text-[10px] text-muted-foreground sm:text-xs">{t.time}</div>
+                <div className="break-words text-sm">{t.event}</div>
               </li>
             ))}
           </ol>
         </Accordion>
 
         <Accordion title="Raw output (JSON)" icon={FileText}>
-          <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-background/60 p-4 font-mono text-xs leading-relaxed">
+          <pre className="max-h-60 max-w-full overflow-x-auto overflow-y-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-[10px] leading-relaxed sm:max-h-72 sm:p-4 sm:text-xs">
             {JSON.stringify(scan, null, 2)}
           </pre>
         </Accordion>
@@ -284,7 +311,12 @@ function ScanDetail() {
 }
 
 function ConfidenceRing({ value, status }: { value: number; status: string }) {
-  const r = 36;
+  /**
+   * Ring sits near the viewBox edge so the inner opening is wide enough for "NN%" + label.
+   * Stroke is centered on r, so inner radius = r − strokeWidth/2 — keep that comfortably above half the text block height.
+   */
+  const r = 39;
+  const strokeWidth = 5;
   const c = 2 * Math.PI * r;
   const dash = (value / 100) * c;
   const stroke =
@@ -297,27 +329,34 @@ function ConfidenceRing({ value, status }: { value: number; status: string }) {
           : "var(--primary)";
 
   return (
-    <div className="relative grid h-32 w-32 place-items-center">
-      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r={r} className="fill-none stroke-muted" strokeWidth="8" />
+    <div className="relative isolate flex h-[5.25rem] w-[5.25rem] shrink-0 items-center justify-center sm:h-32 sm:w-32">
+      <svg
+        className="pointer-events-none absolute inset-0 z-0 -rotate-90"
+        viewBox="0 0 100 100"
+        aria-hidden
+      >
+        <circle cx="50" cy="50" r={r} className="fill-none stroke-muted" strokeWidth={strokeWidth} />
         <motion.circle
           cx="50"
           cy="50"
           r={r}
           fill="none"
           stroke={stroke}
-          strokeWidth="8"
+          strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={c}
           initial={{ strokeDashoffset: c }}
           animate={{ strokeDashoffset: c - dash }}
           transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
-          style={{ filter: `drop-shadow(0 0 8px ${stroke})` }}
+          style={{ filter: `drop-shadow(0 0 3px ${stroke})` }}
         />
       </svg>
-      <div className="text-center">
-        <div className="font-display text-3xl font-semibold tabular-nums">{value}%</div>
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">confidence</div>
+      {/* Slight upward shift: two-line label reads visually centered in the ring hole; avoids bottom arc + glow overlap */}
+      <div className="relative z-10 flex -translate-y-1 flex-col items-center justify-center gap-0 px-1 text-center sm:-translate-y-0.5">
+        <div className="font-display text-lg font-semibold leading-none tabular-nums sm:text-2xl md:text-3xl">{value}%</div>
+        <div className="mt-0.5 text-[9px] uppercase leading-tight tracking-wider text-muted-foreground sm:text-[10px]">
+          confidence
+        </div>
       </div>
     </div>
   );
@@ -336,15 +375,15 @@ function Accordion({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur-xl">
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur-xl">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-muted/30"
+        className="flex w-full min-w-0 items-center gap-2 px-4 py-3 text-left hover:bg-muted/30 sm:gap-3 sm:px-5 sm:py-4"
       >
-        <Icon className="h-4 w-4 text-primary" />
-        <span className="flex-1 font-display text-base font-semibold">{title}</span>
-        <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+        <Icon className="h-4 w-4 shrink-0 text-primary" />
+        <span className="min-w-0 flex-1 break-words font-display text-sm font-semibold sm:text-base">{title}</span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")} />
       </button>
       <AnimatePresence initial={false}>
         {open && (
@@ -355,7 +394,7 @@ function Accordion({
             transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-border/60 px-5 py-4">{children}</div>
+            <div className="min-w-0 border-t border-border/60 px-4 py-3 sm:px-5 sm:py-4">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>

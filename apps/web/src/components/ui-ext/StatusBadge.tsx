@@ -18,19 +18,29 @@ const icons: Record<ScanStatus, React.ComponentType<{ className?: string }>> = {
   pending: Loader2,
 };
 
-export function StatusBadge({ status, className }: { status: ScanStatus; className?: string }) {
+export function StatusBadge({
+  status,
+  className,
+  iconOnly = false,
+}: {
+  status: ScanStatus;
+  className?: string;
+  /** Icon + colors only; label is screen-reader only (e.g. scan list on small screens). */
+  iconOnly?: boolean;
+}) {
   const meta = statusMeta(status);
   const Icon = icons[status];
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset",
+        "inline-flex items-center rounded-full text-xs font-medium ring-1 ring-inset",
+        iconOnly ? "gap-0 p-1.5" : "gap-1.5 px-2.5 py-1",
         styles[status],
         className,
       )}
     >
       <Icon className={cn("h-3.5 w-3.5", status === "pending" && "animate-spin")} />
-      {meta.label}
+      {iconOnly ? <span className="sr-only">{meta.label}</span> : meta.label}
     </span>
   );
 }

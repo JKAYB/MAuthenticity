@@ -278,7 +278,7 @@ function Dashboard() {
           description={
             liveDemo
               ? "Sample reports for the live demo — not from your API."
-              : "Your most recent authenticity reports from the API."
+              : "Latest authenticity reports"
           }
           action={
             <Link to="/scans" className="text-sm font-medium text-primary hover:underline">

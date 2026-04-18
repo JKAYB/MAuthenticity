@@ -24,13 +24,15 @@ const DEFAULT_BASE_URL = "https://api.prd.realitydefender.xyz";
 const SIGNED_URL_PATH = "/api/files/aws-presigned";
 const MEDIA_RESULT_PREFIX = "/api/media/users";
 
-/** Image MIME allowlist (MVP); matches SDK-supported image types. */
+/** Image MIME allowlist (MVP); HEIC/HEIF common on Samsung Galaxy and iPhone. */
 const IMAGE_MIME = new Set([
   "image/jpeg",
   "image/jpg",
   "image/png",
   "image/gif",
-  "image/webp"
+  "image/webp",
+  "image/heic",
+  "image/heif"
 ]);
 
 /** @see SUPPORTED_FILE_TYPES image row in Reality Defender TS SDK */

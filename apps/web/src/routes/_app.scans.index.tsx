@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Search, Filter, Inbox, ScanSearch, SlidersHorizontal } from "lucide-react";
+import { Search, Inbox, ScanSearch, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { ScanRow } from "@/components/dashboard/ScanRow";
 import { SectionHeader } from "@/components/ui-ext/SectionHeader";
@@ -18,12 +18,12 @@ export const Route = createFileRoute("/_app/scans/")({
   component: ScansList,
 });
 
-const filters: { label: string; value: ScanStatus | "all" }[] = [
-  { label: "All", value: "all" },
-  { label: "Authentic", value: "safe" },
-  { label: "Suspicious", value: "suspicious" },
-  { label: "Manipulated", value: "flagged" },
-  { label: "Analyzing", value: "pending" },
+const filters: { label: string; mobileLabel: string; value: ScanStatus | "all" }[] = [
+  { label: "All", mobileLabel: "All", value: "all" },
+  { label: "Authentic", mobileLabel: "Auth", value: "safe" },
+  { label: "Suspicious", mobileLabel: "Sus.", value: "suspicious" },
+  { label: "Manipulated", mobileLabel: "Manip.", value: "flagged" },
+  { label: "Analyzing", mobileLabel: "Queue", value: "pending" },
 ];
 
 function ScansList() {
@@ -46,7 +46,7 @@ function ScansList() {
   }, [q, filter, scans]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto w-full min-w-0 max-w-7xl space-y-4 overflow-x-hidden sm:space-y-6">
       <SectionHeader
         eyebrow="History"
         title="All scans"
@@ -68,8 +68,8 @@ function ScansList() {
         }
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+        <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={q}
@@ -78,11 +78,11 @@ function ScansList() {
               setLoading(true);
               setTimeout(() => setLoading(false), 250);
             }}
-            placeholder="Search by filename or scan ID…"
-            className="h-10 w-full rounded-lg border border-border bg-input/60 pl-10 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
+            placeholder="Search by filename"
+            className="h-10 w-full min-w-0 rounded-lg border border-border bg-input/60 pl-10 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
           />
         </div>
-        <div className="flex items-center gap-1 overflow-x-auto rounded-lg border border-border bg-card/60 p-0.5 backdrop-blur-xl">
+        <div className="flex w-full min-w-0 touch-pan-x items-stretch gap-0.5 overflow-x-auto overscroll-x-contain rounded-lg border border-border bg-card/60 p-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:max-w-none sm:flex-1 [&::-webkit-scrollbar]:hidden">
           {filters.map((f) => {
             const active = filter === f.value;
             return (
@@ -91,7 +91,7 @@ function ScansList() {
                 type="button"
                 onClick={() => setFilter(f.value)}
                 className={cn(
-                  "relative whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition",
+                  "relative shrink-0 snap-start whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-medium transition sm:px-3",
                   active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -102,18 +102,20 @@ function ScansList() {
                     transition={{ type: "spring", stiffness: 400, damping: 32 }}
                   />
                 )}
-                <span className="relative">{f.label}</span>
+                <span className="relative sm:hidden">{f.mobileLabel}</span>
+                <span className="relative hidden sm:inline">{f.label}</span>
               </button>
             );
           })}
         </div>
-        <button
+        {/* <button
           type="button"
-          className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border bg-card/60 px-3 text-sm text-muted-foreground hover:text-foreground"
+          aria-label="More filters"
+          className="inline-flex size-10 shrink-0 items-center justify-center gap-0 rounded-lg border border-border bg-card/60 text-sm text-muted-foreground hover:text-foreground sm:h-10 sm:w-auto sm:gap-1.5 sm:px-3"
         >
-          <SlidersHorizontal className="h-4 w-4" />
-          More
-        </button>
+          <SlidersHorizontal className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="hidden sm:inline">More</span>
+        </button> */}
       </div>
 
       <div className="rounded-2xl border border-border/60 bg-card/40 p-2 backdrop-blur-xl">

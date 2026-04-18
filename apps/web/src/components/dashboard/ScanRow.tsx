@@ -33,13 +33,13 @@ export function ScanRow({ scan, index = 0 }: { scan: Scan; index?: number }) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">{scan.title}</div>
               <div className="flex shrink-0 items-center gap-1.5 sm:hidden">
-                <StatusBadge status={scan.status} />
+                <StatusBadge status={scan.status} iconOnly />
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-70" />
               </div>
             </div>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-              <span className="min-w-0 truncate font-mono">{scan.id}</span>
-              <span className="shrink-0">·</span>
+              <span className="min-w-0 truncate font-mono">Scanned</span>
+              {/* <span className="shrink-0">·</span> */}
               <span className="shrink-0">{timeAgo(scan.createdAt)}</span>
             </div>
           </div>
