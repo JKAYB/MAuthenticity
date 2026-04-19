@@ -107,12 +107,12 @@ function Landing() {
           <Logo />
         </Link>
         <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
-          <a href="#features" className="hover:text-foreground">
+          <a href="/#features" className="hover:text-foreground">
             Features
           </a>
-          <a href="#how" className="hover:text-foreground">
+          <Link to="/how-it-works" className="hover:text-foreground">
             How it works
-          </a>
+          </Link>
           <Link to="/login" className="hover:text-foreground">
             Sign in
           </Link>
