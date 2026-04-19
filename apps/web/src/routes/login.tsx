@@ -12,6 +12,7 @@ import { Eye, EyeOff, ArrowRight, Github, Mail, ShieldCheck, Sparkles } from "lu
 import { useState } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/brand/Logo";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { prefetchMe, useLogin, useSignup } from "@/features/auth/hooks";
 import { getToken } from "@/lib/auth-storage";
 
@@ -82,7 +83,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
 
   return (
     <div className="relative min-h-screen lg:grid lg:grid-cols-2">
-      <div className="relative hidden overflow-hidden bg-gradient-to-br from-[oklch(0.18_0.04_265)] via-[oklch(0.2_0.05_280)] to-[oklch(0.16_0.03_260)] lg:block">
+      <div className="login-brand-panel relative hidden overflow-hidden lg:block">
         <div className="grid-bg absolute inset-0 opacity-40" />
         <div className="float absolute -left-20 top-32 h-72 w-72 rounded-full bg-primary/30 blur-3xl" />
         <div
@@ -128,6 +129,9 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
       </div>
 
       <div className="relative flex min-h-screen items-center justify-center px-6 py-12">
+        <div className="absolute right-6 top-6 z-10">
+          <ThemeToggle />
+        </div>
         <div className="lg:hidden">
           <div className="absolute left-6 top-6">
             <Link
@@ -242,7 +246,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
               disabled={busy}
               className="group relative mt-1 inline-flex h-10 w-full items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-gradient-to-br from-primary to-accent text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] transition active:scale-[0.99] disabled:opacity-60 cursor-pointer"
             >
-              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-primary-foreground/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
               <ShieldCheck className="h-4 w-4" />
               {busy ? "Please wait…" : isLogin ? "Sign in" : "Create account"}
               <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />

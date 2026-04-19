@@ -145,7 +145,7 @@ function ScanDetail() {
     scan.status === "safe"
       ? "from-success/30 to-success/0 ring-success/30 text-success"
       : scan.status === "flagged"
-        ? "from-destructive/30 to-destructive/0 ring-destructive/40 text-[oklch(0.85_0.2_22)]"
+        ? "from-destructive/30 to-destructive/0 ring-destructive/40 text-destructive"
         : scan.status === "suspicious"
           ? "from-warning/30 to-warning/0 ring-warning/40 text-warning"
           : "from-primary/30 to-primary/0 ring-primary/40 text-primary";
@@ -265,7 +265,7 @@ function ScanDetail() {
               liveDemo={liveDemo}
               uploadPreviewKind={uploadPreviewKind}
             />
-          </div> 
+          </div>
         </motion.div>
 
         <motion.div
@@ -303,10 +303,10 @@ function ScanDetail() {
                       className={cn(
                         "h-full rounded-full",
                         d.score > 0.7
-                          ? "bg-gradient-to-r from-destructive to-[oklch(0.78_0.2_22)]"
+                          ? "bg-gradient-to-r from-destructive to-destructive/80"
                           : d.score > 0.4
-                            ? "bg-gradient-to-r from-warning to-[oklch(0.85_0.16_80)]"
-                            : "bg-gradient-to-r from-success to-[oklch(0.85_0.17_155)]",
+                            ? "bg-gradient-to-r from-warning to-warning/80"
+                            : "bg-gradient-to-r from-success to-success/80",
                       )}
                     />
                   </div>

@@ -45,8 +45,8 @@ export function MetricCard({
           className={cn(
             "inline-flex shrink-0 items-center gap-0.5 rounded-md px-1 py-0.5 text-[10px] font-medium md:px-1.5 md:py-0.5 md:text-xs",
             positive
-              ? "bg-[oklch(0.74_0.17_155_/_0.12)] text-[oklch(0.85_0.17_155)]"
-              : "bg-destructive/15 text-[oklch(0.8_0.2_22)]",
+              ? "bg-success/12 text-success"
+              : "bg-destructive/15 text-destructive",
           )}
         >
           {positive ? (

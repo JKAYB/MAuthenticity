@@ -2,7 +2,7 @@ import type { FluidEtherLandingMode } from "@/hooks/use-fluid-ether-enabled";
 
 /** Static gradient behind / before WebGL (matches marketing shell). */
 export const LANDING_STATIC_FLUID_FALLBACK_CLASS =
-  "absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,color-mix(in_oklab,var(--primary)_35%,transparent),transparent_55%),radial-gradient(90%_60%_at_100%_40%,color-mix(in_oklab,var(--accent)_28%,transparent),transparent_50%),radial-gradient(80%_50%_at_0%_60%,oklch(0.55_0.2_280_/_0.2),transparent_55%)]";
+  "absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,color-mix(in_oklab,var(--primary)_35%,transparent),transparent_55%),radial-gradient(90%_60%_at_100%_40%,color-mix(in_oklab,var(--accent)_28%,transparent),transparent_50%),radial-gradient(80%_50%_at_0%_60%,color-mix(in_oklab,var(--accent)_22%,transparent),transparent_55%)]";
 
 /** Idle delay after last scroll event before easing fluid sim cost again. */
 export const LANDING_SCROLL_IDLE_MS = 130;

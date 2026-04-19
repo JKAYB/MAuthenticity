@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 export type MarketingHeaderPage = "home" | "how-it-works";
 
@@ -27,7 +27,7 @@ export function MarketingHeader({ currentPage }: MarketingHeaderProps) {
         </Link>
 
         <nav
-          className="hidden items-center gap-8 text-sm text-muted-foreground md:flex"
+          className="hidden items-center gap-6 text-sm text-muted-foreground md:flex"
           aria-label="Primary"
         >
           {homeCurrent ? (
@@ -51,11 +51,15 @@ export function MarketingHeader({ currentPage }: MarketingHeaderProps) {
           <Link to="/login" className="hover:text-foreground">
             Sign in
           </Link>
+          <ThemeToggle />
         </nav>
 
-        <Link to="/login" className={`${headerCtaClassName} md:hidden`} aria-label="Sign in">
-          Sign in
-        </Link>
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeToggle />
+          <Link to="/login" className={headerCtaClassName} aria-label="Sign in">
+            Sign in
+          </Link>
+        </div>
         {/* <Link to="/signup" className={`${headerCtaClassName} hidden md:inline-flex`}>
           Get started <ArrowRight className="h-3.5 w-3.5" />
         </Link> */}

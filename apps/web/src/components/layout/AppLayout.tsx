@@ -15,6 +15,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/Logo";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { getToken, getTokenSnapshot, subscribeToken } from "@/lib/auth-storage";
 import { useLogout, useMe } from "@/features/auth/hooks";
 import { disableLiveDemo, getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
@@ -279,6 +280,7 @@ export function AppLayout() {
               </kbd>
             </div>
             <div className="ml-auto flex items-center gap-2">
+              <ThemeToggle />
               <NotificationBell />
             </div>
           </div>

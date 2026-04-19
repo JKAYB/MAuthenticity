@@ -19,6 +19,7 @@ import { useChangePassword, useMe } from "@/features/auth/hooks";
 import { getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
 import { user as demoUser } from "@/lib/mock-data";
 import { SectionHeader } from "@/components/ui-ext/SectionHeader";
+import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/settings")({
@@ -124,7 +125,19 @@ function SettingsPage() {
           transition={{ duration: 0.3 }}
           className="min-w-0 space-y-6"
         >
-          {tab === "profile" && <ProfileAccountCard />}
+          {tab === "profile" && (
+            <>
+              <ProfileAccountCard />
+              <Card title="Appearance">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Light and dark themes use the same layout; your choice is saved in this browser.
+                  </p>
+                  <ThemeSegmentedControl className="shrink-0 self-start sm:self-auto" />
+                </div>
+              </Card>
+            </>
+          )}
 
           {tab === "security" && (
             <>

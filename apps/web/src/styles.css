@@ -5,8 +5,9 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * MediaAuth — Dark cyber-trust design system.
- * Deep navy/black base, electric cyan + violet accents, glow.
+ * MediaAuth — dual theme design tokens.
+ * :root = light (default CSS); html.dark = original dark cyber aesthetic.
+ * Default runtime theme is dark (see index.html + theme.ts); removing .dark enables light.
  */
 
 @theme inline {
@@ -59,21 +60,78 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-
-  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 40%, transparent),
-    0 8px 32px -8px color-mix(in oklab, var(--primary) 50%, transparent);
-  --shadow-glow-violet: 0 0 0 1px color-mix(in oklab, var(--accent) 40%, transparent),
-    0 8px 32px -8px color-mix(in oklab, var(--accent) 50%, transparent);
-  --shadow-elevated: 0 1px 0 0 oklch(1 0 0 / 0.04) inset,
-    0 1px 2px 0 oklch(0 0 0 / 0.4),
-    0 12px 32px -12px oklch(0 0 0 / 0.6);
 }
 
-:root,
-.dark {
+/* Theme-scoped shadows (referenced by utilities below). */
+:root {
   --radius: 0.75rem;
 
-  /* Surfaces — deep navy/near-black */
+  /* —— Light theme —— */
+  --background: oklch(0.985 0.003 250);
+  --foreground: oklch(0.2 0.025 260);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0 0 0);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0 0 0);
+
+  --primary: oklch(0.55 0.2 260);
+  --primary-foreground: oklch(0.99 0.005 250);
+  
+  --secondary: oklch(0.96 0.008 255);
+  --secondary-foreground: oklch(0.25 0.03 260);
+  
+  --muted: oklch(0.965 0.006 255);
+  --muted-foreground: oklch(0.5 0.02 258);
+  
+  --accent: oklch(0.6 0.22 295);
+  --accent-foreground: oklch(0.99 0.005 250);
+
+  --destructive: oklch(0.6 0.22 22);
+  --destructive-foreground: oklch(0.99 0.01 20);
+  
+  --success: oklch(0.62 0.16 155);
+  --success-foreground: oklch(0.99 0.005 250);
+
+  --warning: oklch(0.72 0.17 75);
+  --warning-foreground: oklch(0.2 0.03 80);
+
+
+  --border: oklch(0.2 0.02 260 / 0.1);
+  --input: oklch(0.2 0.02 260 / 0.04);
+  --ring: oklch(0.55 0.2 260 / 0.5);
+
+  --chart-1: oklch(0.55 0.2 260);
+  --chart-2: oklch(0.6 0.22 295);
+  --chart-3: oklch(0.62 0.16 155);
+  --chart-4: oklch(0.72 0.17 75);
+  --chart-5: oklch(0.6 0.22 22);
+
+  --sidebar: oklch(0.99 0.003 250);
+  --sidebar-foreground: oklch(0.25 0.025 260);
+  --sidebar-primary: oklch(0.55 0.2 260);
+  --sidebar-primary-foreground: oklch(0.99 0.005 250);
+  --sidebar-accent: oklch(0.955 0.008 258);
+  --sidebar-accent-foreground: oklch(0.2 0.03 260);
+  --sidebar-border: oklch(0.2 0.02 260 / 0.08);
+  --sidebar-ring: oklch(0.55 0.2 260 / 0.5);
+
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 22%, transparent),
+    0 6px 22px -6px color-mix(in oklab, var(--primary) 28%, transparent);
+  --shadow-glow-violet: 0 0 0 1px color-mix(in oklab, var(--accent) 22%, transparent),
+    0 6px 22px -6px color-mix(in oklab, var(--accent) 26%, transparent);
+  --shadow-elevated: 0 1px 0 0 oklch(1 0 0 / 0.9) inset,
+  0 2px 4px 0 oklch(0 0 0 / 0.06),
+  0 12px 32px -10px oklch(0 0 0 / 0.12);
+
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+
+  /* —— Dark theme (original) —— */
   --background: oklch(0.16 0.025 260);
   --foreground: oklch(0.97 0.005 250);
 
@@ -83,7 +141,6 @@
   --popover: oklch(0.205 0.03 262);
   --popover-foreground: oklch(0.97 0.005 250);
 
-  /* Primary — electric cyan */
   --primary: oklch(0.78 0.16 215);
   --primary-foreground: oklch(0.15 0.03 260);
 
@@ -93,7 +150,6 @@
   --muted: oklch(0.235 0.03 263);
   --muted-foreground: oklch(0.68 0.025 255);
 
-  /* Accent — violet */
   --accent: oklch(0.7 0.2 295);
   --accent-foreground: oklch(0.97 0.005 250);
 
@@ -124,13 +180,21 @@
   --sidebar-accent-foreground: oklch(0.97 0.005 250);
   --sidebar-border: oklch(1 0 0 / 0.06);
   --sidebar-ring: oklch(0.78 0.16 215 / 0.6);
+
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 40%, transparent),
+    0 8px 32px -8px color-mix(in oklab, var(--primary) 50%, transparent);
+  --shadow-glow-violet: 0 0 0 1px color-mix(in oklab, var(--accent) 40%, transparent),
+    0 8px 32px -8px color-mix(in oklab, var(--accent) 50%, transparent);
+  --shadow-elevated: 0 1px 0 0 oklch(1 0 0 / 0.04) inset,
+    0 1px 2px 0 oklch(0 0 0 / 0.4),
+    0 12px 32px -12px oklch(0 0 0 / 0.6);
 }
 
 @layer base {
   * {
     border-color: var(--color-border);
   }
-
+  
   html,
   body {
     font-family: var(--font-sans);
@@ -147,10 +211,16 @@
   }
 
   body {
+    background-attachment: fixed;
+    background-image:
+      radial-gradient(ellipse 85% 55% at 8% -8%, color-mix(in oklab, var(--primary) 18%, transparent), transparent 58%),
+      radial-gradient(ellipse 75% 48% at 108% 4%, color-mix(in oklab, var(--accent) 16%, transparent), transparent 58%);
+  }
+
+  html.dark body {
     background-image:
       radial-gradient(ellipse 80% 60% at 10% -10%, oklch(0.78 0.16 215 / 0.15), transparent 60%),
       radial-gradient(ellipse 70% 50% at 110% 0%, oklch(0.7 0.2 295 / 0.18), transparent 60%);
-    background-attachment: fixed;
   }
 
   h1,
@@ -164,6 +234,9 @@
   ::selection {
     background: color-mix(in oklab, var(--primary) 40%, transparent);
     color: var(--foreground);
+  }
+  button {
+    cursor: pointer;
   }
 }
 
@@ -194,6 +267,18 @@
     color: transparent;
   }
 
+  html:not(.dark) .gradient-text {
+    background: linear-gradient(
+      135deg,
+      oklch(0.42 0.12 215),
+      oklch(0.4 0.15 275),
+      oklch(0.38 0.16 305)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   /** Wider gradient + slow pan — use on short spans (e.g. hero “verified.”). */
   @keyframes gradient-text-shift {
     0%,
@@ -206,7 +291,8 @@
   }
 
   .gradient-text-animated {
-    background: linear-gradient(
+    display: inline-block;
+    background-image: linear-gradient(
       105deg,
       oklch(0.84 0.15 210),
       oklch(0.86 0.16 218),
@@ -217,8 +303,10 @@
     );
     background-size: 240% 240%;
     background-position: 0% 50%;
+    background-repeat: no-repeat;
     -webkit-background-clip: text;
     background-clip: text;
+    -webkit-text-fill-color: transparent;
     color: transparent;
     animation: gradient-text-shift 14s ease-in-out infinite;
   }
@@ -229,6 +317,28 @@
       background-size: 100% 100%;
       background-position: 0% 50%;
     }
+  }
+  
+
+  html:not(.dark) .gradient-text-animated {
+    background-image: linear-gradient(
+      105deg,
+      oklch(0.45 0.12 210),
+      oklch(0.46 0.13 218),
+      oklch(0.42 0.16 270),
+      oklch(0.4 0.17 305),
+      oklch(0.44 0.15 255),
+      oklch(0.45 0.12 210)
+    );
+  }
+
+  .login-brand-panel {
+    background: linear-gradient(
+      to bottom right,
+      color-mix(in oklab, var(--sidebar) 100%, transparent),
+      color-mix(in oklab, var(--card) 85%, var(--primary)),
+      color-mix(in oklab, var(--background) 70%, var(--sidebar))
+    );
   }
 
   .gradient-border {
@@ -265,8 +375,8 @@
 
   .grid-bg {
     background-image:
-      linear-gradient(to right, oklch(1 0 0 / 0.04) 1px, transparent 1px),
-      linear-gradient(to bottom, oklch(1 0 0 / 0.04) 1px, transparent 1px);
+      linear-gradient(to right, color-mix(in oklab, var(--foreground) 7%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--foreground) 7%, transparent) 1px, transparent 1px);
     background-size: 32px 32px;
   }
 
@@ -282,7 +392,7 @@
     background: linear-gradient(
       90deg,
       transparent,
-      oklch(1 0 0 / 0.06),
+      color-mix(in oklab, var(--foreground) 8%, transparent),
       transparent
     );
     animation: shimmer 1.8s infinite;
@@ -341,5 +451,11 @@
     .hero-headline-glow {
       animation: none;
     }
+  }
+
+  html:not(.dark) .hero-headline-glow {
+    animation: none;
+    filter: drop-shadow(0 0 10px color-mix(in oklab, var(--primary) 22%, transparent))
+      drop-shadow(0 0 26px color-mix(in oklab, var(--accent) 14%, transparent));
   }
 }

@@ -1,5 +1,6 @@
 import { Outlet, Link, createRootRoute } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { useTheme } from "@/hooks/use-theme";
 
 function NotFoundComponent() {
   return (
@@ -23,12 +24,17 @@ function NotFoundComponent() {
   );
 }
 
-export const Route = createRootRoute({
-  component: () => (
+function RootLayout() {
+  const { theme } = useTheme();
+  return (
     <>
       <Outlet />
-      <Toaster richColors position="top-center" />
+      <Toaster richColors position="top-center" theme={theme} />
     </>
-  ),
+  );
+}
+
+export const Route = createRootRoute({
+  component: RootLayout,
   notFoundComponent: NotFoundComponent,
 });
