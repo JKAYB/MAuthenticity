@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { ArrowRight, ShieldCheck, Sparkles, Activity, Lock, Zap } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { MarketingHeader } from "@/components/marketing/MarketingHeader";
 import LiquidEther from "@/components/liquid-ether/LiquidEther";
 import { useFluidEtherLandingMode } from "@/hooks/use-fluid-ether-enabled";
 import {
@@ -110,32 +111,7 @@ function Landing() {
         style={{ animationDelay: "-3s" }}
       />
 
-      <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <Link
-          to="/"
-          aria-label="MediaAuth home"
-          className="mobile-tap-fix inline-flex w-fit touch-manipulation rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
-        >
-          <Logo />
-        </Link>
-        <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
-          <a href="/#features" className="hover:text-foreground">
-            Features
-          </a>
-          <Link to="/how-it-works" className="hover:text-foreground">
-            How it works
-          </Link>
-          <Link to="/login" className="hover:text-foreground">
-            Sign in
-          </Link>
-        </nav>
-        <Link
-          to="/signup"
-          className="mobile-tap-fix inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-primary to-accent px-3 py-1.5 text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] transition hover:scale-[1.02]"
-        >
-          Get started <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-      </header>
+      <MarketingHeader currentPage="home" />
 
       <section
         id="how"
@@ -174,65 +150,34 @@ function Landing() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.48, delay: 0.16 }}
-          className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"
+          className="mt-8 flex w-full max-w-md flex-col items-stretch gap-3 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-center"
         >
           <Link
             to="/signup"
-            className="mobile-tap-fix group inline-flex h-11 items-center gap-2 rounded-lg bg-gradient-to-br from-primary to-accent px-5 text-sm font-semibold text-primary-foreground shadow-[0_0_32px_-8px_var(--primary)] transition hover:scale-[1.02]"
+            className="mobile-tap-fix group inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-primary to-accent px-5 text-sm font-semibold text-primary-foreground shadow-[0_0_32px_-8px_var(--primary)] transition hover:scale-[1.02] sm:w-auto"
           >
             Start scanning free
             <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
           </Link>
-          <Link
-            to="/dashboard"
-            onClick={() => enableLiveDemo()}
-            className="mobile-tap-fix inline-flex h-11 items-center rounded-lg border border-border bg-card/60 px-5 text-sm font-medium backdrop-blur transition hover:bg-card"
-          >
-            View live demo
-          </Link>
-        </motion.div>
-
-        {/* Hero device mock */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.52, delay: 0.22 }}
-          className="relative mx-auto mt-16 max-w-3xl"
-        >
-          <div className="gradient-border relative overflow-hidden rounded-2xl bg-card/70 p-1 backdrop-blur-lg elevated">
-            <div className="rounded-xl bg-background/80 p-4 sm:p-6">
-              <div className="mb-4 flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-destructive/70" />
-                <span className="h-2.5 w-2.5 rounded-full bg-warning/70" />
-                <span className="h-2.5 w-2.5 rounded-full bg-success/70" />
-                <span className="ml-3 font-mono text-xs text-muted-foreground">
-                  mediaauth.io/scan
-                </span>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                {[
-                  { label: "Authentic", v: "92%", c: "from-success/30 to-success/0" },
-                  { label: "Manipulated", v: "47", c: "from-destructive/30 to-destructive/0" },
-                  { label: "Avg. scan", v: "8.4s", c: "from-primary/30 to-primary/0" },
-                ].map((m, i) => (
-                  <div
-                    key={i}
-                    className={`rounded-lg bg-gradient-to-br ${m.c} p-4 ring-1 ring-border`}
-                  >
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {m.label}
-                    </div>
-                    <div className="mt-1 font-display text-2xl font-semibold">{m.v}</div>
-                  </div>
-                ))}
-              </div>
-              {/* <div className="mt-4 h-32 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 ring-1 ring-border" /> */}
-            </div>
+          <div className="flex w-full flex-row gap-3 sm:w-auto">
+            <Link
+              to="/how-it-works"
+              className="mobile-tap-fix inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-border bg-card/60 px-3 text-sm font-medium backdrop-blur transition hover:bg-card md:hidden"
+            >
+              How it works
+            </Link>
+            <Link
+              to="/dashboard"
+              onClick={() => enableLiveDemo()}
+              className="mobile-tap-fix inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-border bg-card/60 px-5 text-sm font-medium backdrop-blur transition hover:bg-card sm:min-w-[10.5rem] md:flex-none"
+            >
+              View live demo
+            </Link>
           </div>
         </motion.div>
       </section>
 
-      <section id="features" className="relative z-10 mx-auto max-w-6xl px-6 pb-24">
+      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-24">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
