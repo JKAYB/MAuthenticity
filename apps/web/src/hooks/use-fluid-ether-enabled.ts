@@ -24,16 +24,19 @@ function computeFluidMode(): FluidEtherLandingMode {
   if (typeof window === "undefined") return "off";
 
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    return "off";
+    // return "off";
+    return "lite";
   }
 
   if (window.matchMedia("(hover: none) and (pointer: coarse)").matches) {
-    return "off";
+    // return "off";
+    return "lite";
   }
 
   const w = typeof window.innerWidth === "number" ? window.innerWidth : 0;
   if (w < 768) {
-    return "off";
+    // return "off";
+    return "lite";
   }
 
   const cores = readHardwareConcurrency();
@@ -46,7 +49,8 @@ function computeFluidMode(): FluidEtherLandingMode {
     (typeof cores === "number" && cores <= 4) || (typeof memGb === "number" && memGb < 8);
 
   if (w < 1280) {
-    return weakSevere ? "off" : "lite";
+    // return weakSevere ? "off" : "lite";
+    return "lite";
   }
 
   if (weakModerate) {
@@ -81,7 +85,8 @@ function getSnapshot(): FluidEtherLandingMode {
 }
 
 function getServerSnapshot(): FluidEtherLandingMode {
-  return "off";
+  // return "off";
+  return "lite";
 }
 
 export function useFluidEtherLandingMode(): FluidEtherLandingMode {
