@@ -17,11 +17,12 @@ function createApp() {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
+  const loopbackOriginRe = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i;
 
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes(origin) || loopbackOriginRe.test(origin)) {
           callback(null, true);
           return;
         }

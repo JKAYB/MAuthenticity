@@ -8,10 +8,18 @@ const MAX_PASSWORD_LENGTH = 200;
 const AUTH_COOKIE_NAME = "auth_token";
 
 function authCookieOptions() {
+  const explicitSameSite = String(process.env.AUTH_COOKIE_SAMESITE || "").trim().toLowerCase();
+  const sameSite =
+    explicitSameSite === "strict" || explicitSameSite === "lax" || explicitSameSite === "none"
+      ? explicitSameSite
+      : process.env.NODE_ENV === "production"
+        ? "none"
+        : "lax";
+  const secure = sameSite === "none" || process.env.NODE_ENV === "production";
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure,
+    sameSite,
     maxAge: 24 * 60 * 60 * 1000,
     path: "/"
   };
