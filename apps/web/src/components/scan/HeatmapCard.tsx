@@ -6,13 +6,13 @@ type Heatmap = {
   url: string;
 };
 
-export function HeatmapCard({ heatmap }: { heatmap: Heatmap }) {
+export function HeatMapCard({ heatmap }: { heatmap: Heatmap }) {
   const [failed, setFailed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
   const retry = () => {
     setFailed(false);
-    setRetryKey((k) => k + 1); // forces reload
+    setRetryKey((k) => k + 1); // force reload
   };
 
   return (
@@ -39,7 +39,8 @@ export function HeatmapCard({ heatmap }: { heatmap: Heatmap }) {
               href={heatmap.url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
               <ExternalLink className="h-3 w-3" />
               Open
             </a>

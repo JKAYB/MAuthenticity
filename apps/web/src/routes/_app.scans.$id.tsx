@@ -22,7 +22,7 @@ import { downloadScanOriginal } from "@/lib/scan-media-download";
 import { formatFileSize, strictUploadPreviewKind } from "@/lib/scan-media";
 import { cn } from "@/lib/utils";
 import { debounce } from "lodash";
-import { HeatmapCard } from "@/components/scan/HeatMapCard";
+import { HeatMapCard } from "@/components/scan/HeatMapCard";
 
 export const Route = createFileRoute("/_app/scans/$id")({
   head: () => ({
@@ -418,7 +418,7 @@ function ScanDetail() {
           {visibleHeatmaps.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {visibleHeatmaps.map((heatmap) => (
-              <HeatmapCard
+              <HeatMapCard
                 key={heatmap.modelName}
                 heatmap={heatmap}
               />
