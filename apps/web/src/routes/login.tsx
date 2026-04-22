@@ -172,7 +172,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
         </div>
       </div>
 
-      <div className="relative flex min-h-screen items-center justify-center px-6 py-12">
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-12">
         <div className="absolute right-6 top-6 z-10">
           <ThemeToggle />
         </div>
@@ -192,7 +192,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="w-full max-w-sm"
+          className="w-full max-w-sm rounded-2xl border border-border/70 bg-background/95 p-5 shadow-xl backdrop-blur-sm sm:p-6"
         >
           <div className="mb-7">
             <h1 className="font-display text-3xl font-semibold tracking-tight">
@@ -315,7 +315,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
           height: 2.5rem;
           border-radius: 0.5rem;
           border: 1px solid var(--color-border);
-          background: color-mix(in oklab, var(--input) 80%, transparent);
+          background: var(--input);
           padding: 0 0.75rem;
           font-size: 0.875rem;
           transition: border-color .2s, box-shadow .2s, background .2s;
@@ -325,7 +325,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
           outline: none;
           border-color: color-mix(in oklab, var(--primary) 60%, transparent);
           box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 20%, transparent);
-          background: color-mix(in oklab, var(--input) 100%, transparent);
+          background: var(--input);
         }
       `}</style>
     </div>

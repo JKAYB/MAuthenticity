@@ -355,6 +355,7 @@ export function apiScanToUiScan(row: ApiScanRow): Scan {
     confidence,
     createdAt: row.created_at,
     mimeType: row.mime_type || undefined,
+    mediaType: row.media_type || undefined,
     previewUrl,
     canFetchMedia,
     fileSizeBytes:

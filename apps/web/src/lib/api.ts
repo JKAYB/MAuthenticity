@@ -126,6 +126,7 @@ export type ApiScanRow = {
   id: string;
   filename: string;
   mime_type: string;
+  media_type?: "image" | "video" | "audio" | "document" | "other";
   file_size_bytes?: number;
   status: string;
   confidence: number | string | null;
@@ -158,11 +159,12 @@ export type ScanHistoryResponse = {
 };
 
 export async function getScanHistory(
-  params: { page?: number; limit?: number } = {},
+  params: { page?: number; limit?: number; mediaType?: "image" | "video" | "audio" | "document" | "other" } = {},
 ): Promise<ScanHistoryResponse> {
   const q = new URLSearchParams();
   if (params.page) q.set("page", String(params.page));
   if (params.limit) q.set("limit", String(params.limit));
+  if (params.mediaType) q.set("mediaType", params.mediaType);
   const qs = q.toString();
   return apiJson<ScanHistoryResponse>(`/scan/history${qs ? `?${qs}` : ""}`);
 }

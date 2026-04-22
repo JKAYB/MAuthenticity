@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui-ext/EmptyState";
 import { Shimmer } from "@/components/ui-ext/Skeleton";
 import { useScanHistoryQuery } from "@/features/scan/hooks";
 import { getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
+import type { NormalizedMediaType } from "@/lib/mock-data";
 import type { ScanStatus } from "@/lib/mock-data";
 import type { Scan } from "@/lib/mock-data";
 import { scans as demoScans } from "@/lib/mock-data";
@@ -26,14 +27,33 @@ const filters: { label: string; mobileLabel: string; value: ScanStatus | "all" }
   { label: "Analyzing", mobileLabel: "Queue", value: "pending" },
 ];
 
+const mediaFilters: { label: string; value: "all" | NormalizedMediaType }[] = [
+  { label: "All", value: "all" },
+  { label: "Images", value: "image" },
+  { label: "Videos", value: "video" },
+  { label: "Audio", value: "audio" },
+  { label: "Documents", value: "document" },
+  { label: "Other", value: "other" },
+];
+
 function ScansList() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<ScanStatus | "all">("all");
+  const [mediaFilter, setMediaFilter] = useState<"all" | NormalizedMediaType>("all");
+  const [page, setPage] = useState(1);
+  const limit = 10;
   const [loading, setLoading] = useState(false);
   const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
-  const historyQuery = useScanHistoryQuery({ page: 1, limit: 50, enabled: !liveDemo });
+  const historyQuery = useScanHistoryQuery({
+    page,
+    limit,
+    mediaType: mediaFilter === "all" ? undefined : mediaFilter,
+    enabled: !liveDemo
+  });
 
-  const scans: Scan[] = liveDemo ? demoScans : (historyQuery.data ?? []);
+  const scans: Scan[] = liveDemo
+    ? demoScans.filter((s) => mediaFilter === "all" || s.mediaType === mediaFilter)
+    : (historyQuery.data ?? []);
   const listLoading = liveDemo ? false : historyQuery.isPending;
   const listError = liveDemo ? null : historyQuery.isError ? historyQuery.error.message : null;
 
@@ -118,6 +138,30 @@ function ScansList() {
         </button> */}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        {mediaFilters.map((f) => {
+          const active = mediaFilter === f.value;
+          return (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => {
+                setMediaFilter(f.value);
+                setPage(1);
+              }}
+              className={cn(
+                "rounded-md border px-3 py-1.5 text-xs font-medium transition",
+                active
+                  ? "border-primary/50 bg-primary/10 text-foreground"
+                  : "border-border bg-card/50 text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="rounded-2xl border border-border/60 bg-card/40 p-2 backdrop-blur-xl">
         {listLoading ? (
           <div className="space-y-2 p-2">
@@ -171,6 +215,32 @@ function ScansList() {
           </div>
         )}
       </div>
+
+      {!liveDemo && !listLoading && !listError ? (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            Page {historyQuery.data ? page : 1}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-md border border-border bg-card px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(historyQuery.data && historyQuery.data.length < limit)}
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded-md border border-border bg-card px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

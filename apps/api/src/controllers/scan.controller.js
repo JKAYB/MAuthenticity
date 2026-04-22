@@ -18,6 +18,7 @@ const {
   buildContentDisposition,
   wantsAttachmentDownload
 } = require("../utils/contentDisposition.util");
+const { MEDIA_TYPE_VALUES } = require("../utils/mediaType.util");
 
 function parsePagination(query) {
   const page = Number.parseInt(query.page, 10);
@@ -242,7 +243,19 @@ async function streamScanMedia(req, res, next) {
 async function scanHistory(req, res, next) {
   try {
     const { page, limit } = parsePagination(req.query);
-    const result = await getScanHistory({ userId: req.user.id, page, limit });
+    const mediaTypeRaw =
+      req.query && typeof req.query.mediaType === "string"
+        ? String(req.query.mediaType).trim().toLowerCase()
+        : "";
+    if (mediaTypeRaw && !MEDIA_TYPE_VALUES.includes(mediaTypeRaw)) {
+      return res.status(400).json({ error: "Invalid mediaType filter" });
+    }
+    const result = await getScanHistory({
+      userId: req.user.id,
+      page,
+      limit,
+      mediaType: mediaTypeRaw || undefined
+    });
     return res.json(result);
   } catch (error) {
     return next(error);

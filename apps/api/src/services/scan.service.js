@@ -10,6 +10,7 @@ const { pool } = require("../db/pool");
 const { getScanExecutionMode } = require("../config/scanExecution");
 const { parseBytesRange } = require("../utils/scanMediaRange.util");
 const { findHeatmapAssetRef } = require("./scanDetailHeatmap.service");
+const { MEDIA_TYPE_SQL } = require("../utils/mediaType.util");
 const {
   resolveArtifactAggregationStorageKey,
   resolveArtifactModelMetadataStorageKey,
@@ -18,7 +19,7 @@ const {
 
 const SCAN_SELECT_FIELDS = `id, user_id, filename, mime_type, file_size_bytes, status, confidence, is_ai_generated,
             result_payload, error_message, summary, source_type, source_url, storage_key, storage_provider, detection_provider,
-            created_at, updated_at, completed_at`;
+            created_at, updated_at, completed_at, (${MEDIA_TYPE_SQL}) AS media_type`;
 
 /** Max bytes allowed for scan media preview (full or ranged). */
 const MAX_MEDIA_PREVIEW_BYTES = 25 * 1024 * 1024;
@@ -341,18 +342,28 @@ async function getScanArtifactForUser({ scanId, userId, type }) {
   }
 }
 
-async function getScanHistory({ userId, page, limit }) {
+async function getScanHistory({ userId, page, limit, mediaType }) {
   const offset = (page - 1) * limit;
+  const where = ["user_id = $1"];
+  /** @type {unknown[]} */
+  const params = [userId];
+  if (mediaType) {
+    where.push(`(${MEDIA_TYPE_SQL}) = $2`);
+    params.push(mediaType);
+  }
+  const whereSql = where.join(" AND ");
+  const limitParam = params.length + 1;
+  const offsetParam = params.length + 2;
   const [{ rows: dataRows }, { rows: countRows }] = await Promise.all([
     pool.query(
       `SELECT ${SCAN_SELECT_FIELDS}
        FROM scans
-       WHERE user_id = $1
+       WHERE ${whereSql}
        ORDER BY created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [userId, limit, offset]
+       LIMIT $${limitParam} OFFSET $${offsetParam}`,
+      [...params, limit, offset]
     ),
-    pool.query("SELECT COUNT(*)::INT AS total FROM scans WHERE user_id = $1", [userId])
+    pool.query(`SELECT COUNT(*)::INT AS total FROM scans WHERE ${whereSql}`, params)
   ]);
 
   const total = countRows[0] ? countRows[0].total : 0;

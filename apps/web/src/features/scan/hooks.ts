@@ -7,7 +7,7 @@ import {
   type ScanAnalyticsRange,
 } from "@/lib/api";
 import { apiScanToUiScan } from "@/lib/scan-adapter";
-import type { Scan } from "@/lib/mock-data";
+import type { NormalizedMediaType, Scan } from "@/lib/mock-data";
 import { scanKeys } from "./queryKeys";
 
 /** Poll scan detail while worker is still running (API `pending` / `processing` → UI `pending`). */
@@ -16,13 +16,14 @@ const SCAN_DETAIL_POLL_MS = 2500;
 export function useScanHistoryQuery(options: {
   page: number;
   limit: number;
+  mediaType?: NormalizedMediaType;
   enabled?: boolean;
 }) {
-  const { page, limit, enabled = true } = options;
+  const { page, limit, mediaType, enabled = true } = options;
   return useQuery({
-    queryKey: scanKeys.history(page, limit),
+    queryKey: [...scanKeys.history(page, limit), mediaType || "all-media"],
     queryFn: async (): Promise<Scan[]> => {
-      const res = await getScanHistory({ page, limit });
+      const res = await getScanHistory({ page, limit, mediaType });
       return (res.data || []).map(apiScanToUiScan);
     },
     enabled,

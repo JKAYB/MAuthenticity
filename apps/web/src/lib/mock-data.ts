@@ -1,5 +1,6 @@
 export type ScanStatus = "safe" | "flagged" | "suspicious" | "pending";
 export type MediaKind = "image" | "video" | "audio" | "url";
+export type NormalizedMediaType = "image" | "video" | "audio" | "document" | "other";
 
 export type ScanModelInsight = {
   name?: string | null;
@@ -31,6 +32,8 @@ export interface Scan {
   thumbnail?: string;
   /** MIME for preview (e.g. image/jpeg); mirrors API `mime_type`. */
   mimeType?: string;
+  /** Normalized backend category from MIME. */
+  mediaType?: NormalizedMediaType;
   /** Public URL for demo or URL-sourced scans (`<img src>` / `<video src>`). */
   previewUrl?: string | null;
   /** Upload has stored bytes — real app loads via authenticated GET /scan/:id/media. */
