@@ -1,431 +1,4 @@
-// import type { MediaKind, Scan, ScanStatus } from "@/lib/mock-data";
-// import type { ApiScanRow } from "@/lib/api";
-
-// function mapApiStatus(row: ApiScanRow): ScanStatus {
-//   const s = row.status?.toLowerCase() || "";
-//   if (s === "failed") return "suspicious";
-//   if (s === "pending" || s === "processing") return "pending";
-//   if (s === "completed") {
-//     if (row.is_ai_generated === true) return "flagged";
-//     if (row.is_ai_generated === false) return "safe";
-//     return "suspicious";
-//   }
-//   return "pending";
-// }
-
-// function kindFromMime(mime: string): MediaKind {
-//   if (mime.startsWith("video/")) return "video";
-//   if (mime.startsWith("audio/")) return "audio";
-//   if (mime.startsWith("image/")) return "image";
-//   return "image";
-// }
-
-// function scanKind(row: ApiScanRow): MediaKind {
-//   if (row.source_type === "url") return "url";
-//   return kindFromMime(row.mime_type || "");
-// }
-
-// function numConfidence(c: ApiScanRow["confidence"]): number {
-//   if (c == null) return 0;
-//   const n = typeof c === "string" ? Number.parseFloat(c) : c;
-//   return Number.isFinite(n) ? Math.round(n) : 0;
-// }
-
-// export function apiScanToUiScan(row: ApiScanRow): Scan {
-//   const status = mapApiStatus(row);
-//   const confidence = numConfidence(row.confidence);
-//   type ProcessorBlock = { confidence?: number };
-//   type ResultPayload = {
-//     version?: number;
-//     primaryProvider?: string;
-//     processors?: Record<string, ProcessorBlock | undefined>;
-//   };
-
-//   const payload = row.result_payload as ResultPayload | null;
-
-//   function primaryProcessor(): { id: string; block: ProcessorBlock } | null {
-//     const processors = payload?.processors;
-//     if (!processors) return null;
-//     const ids = Object.keys(processors);
-//     if (ids.length === 0) return null;
-//     const primary = payload?.primaryProvider;
-//     const fallbackId = ids.includes("mock") ? "mock" : ids[0];
-//     const id =
-//       primary && processors[primary] ? primary : fallbackId != null ? fallbackId : null;
-//     if (!id) return null;
-//     const block = processors[id];
-//     if (!block) return null;
-//     return { id, block };
-//   }
-
-//   const proc = primaryProcessor();
-//   const detections =
-//     proc && typeof proc.block.confidence === "number"
-//       ? [
-//           {
-//             label: `Model confidence (${proc.id})`,
-//             score: Math.min(1, Math.max(0, proc.block.confidence / 100)),
-//           },
-//         ]
-//       : [];
-
-//   const metadata: { key: string; value: string }[] = [
-//     { key: "MIME type", value: row.mime_type || "—" },
-//     { key: "Source", value: row.source_type === "url" ? "URL" : "Upload" },
-//     ...(row.detection_provider
-//       ? [{ key: "Detection provider", value: row.detection_provider }]
-//       : []),
-//     ...(row.source_url ? [{ key: "URL", value: row.source_url }] : []),
-//     { key: "Status", value: row.status },
-//     {
-//       key: "Size",
-//       value: row.file_size_bytes != null ? `${(row.file_size_bytes / 1024).toFixed(1)} KB` : "—",
-//     },
-//   ];
-//   if (row.error_message) metadata.push({ key: "Error", value: row.error_message });
-//   if (row.summary) metadata.push({ key: "Summary", value: row.summary });
-
-//   const timeline = [
-//     { time: "—", event: `Scan record · ${row.status}` },
-//     ...(row.completed_at ? [{ time: "—", event: `Completed ${row.completed_at}` }] : []),
-//   ];
-
-//   const previewUrl =
-//     String(row.source_type || "").toLowerCase() === "url" &&
-//     row.source_url &&
-//     /^https?:\/\//i.test(String(row.source_url).trim())
-//       ? String(row.source_url).trim()
-//       : null;
-
-//   const canFetchMedia =
-//     String(row.source_type || "upload").toLowerCase() === "upload" &&
-//     Boolean(row.storage_key && String(row.storage_key).trim());
-
-//   return {
-//     id: row.id,
-//     title: row.filename || "Untitled",
-//     source: "upload",
-//     kind: scanKind(row),
-//     status,
-//     confidence,
-//     createdAt: row.created_at,
-//     mimeType: row.mime_type || undefined,
-//     previewUrl,
-//     canFetchMedia,
-//     fileSizeBytes:
-//       row.file_size_bytes != null && Number.isFinite(Number(row.file_size_bytes))
-//         ? Math.trunc(Number(row.file_size_bytes))
-//         : undefined,
-//     detections,
-//     metadata,
-//     timeline,
-//   };
-// }
-
-
-// import type { MediaKind, Scan, ScanStatus } from "@/lib/mock-data";
-// import type { ApiScanRow } from "@/lib/api";
-
-// function mapApiStatus(row: ApiScanRow): ScanStatus {
-//   const s = row.status?.toLowerCase() || "";
-//   if (s === "failed") return "suspicious";
-//   if (s === "pending" || s === "processing") return "pending";
-//   if (s === "completed") {
-//     if (row.is_ai_generated === true) return "flagged";
-//     if (row.is_ai_generated === false) return "safe";
-//     return "suspicious";
-//   }
-//   return "pending";
-// }
-
-// function kindFromMime(mime: string): MediaKind {
-//   if (mime.startsWith("video/")) return "video";
-//   if (mime.startsWith("audio/")) return "audio";
-//   if (mime.startsWith("image/")) return "image";
-//   return "image";
-// }
-
-// function scanKind(row: ApiScanRow): MediaKind {
-//   if (row.source_type === "url") return "url";
-//   return kindFromMime(row.mime_type || "");
-// }
-
-// function numConfidence(c: ApiScanRow["confidence"]): number {
-//   if (c == null) return 0;
-//   const n = typeof c === "string" ? Number.parseFloat(c) : c;
-//   return Number.isFinite(n) ? Math.round(n) : 0;
-// }
-
-// function formatBytesToKb(bytes: number | null | undefined): string {
-//   if (bytes == null || !Number.isFinite(Number(bytes))) return "—";
-//   return `${(Number(bytes) / 1024).toFixed(1)} KB`;
-// }
-
-// function formatDuration(seconds: number | null | undefined): string {
-//   if (seconds == null || !Number.isFinite(Number(seconds))) return "—";
-//   const total = Math.max(0, Math.round(Number(seconds)));
-//   const mins = Math.floor(total / 60);
-//   const secs = total % 60;
-//   if (mins === 0) return `${secs}s`;
-//   return `${mins}m ${secs}s`;
-// }
-
-// type ProcessorBlock = { confidence?: number };
-
-// type ResultPayload = {
-//   version?: number;
-//   primaryProvider?: string;
-//   processors?: Record<string, ProcessorBlock | undefined>;
-//   details?: DetectionDetails;
-// };
-
-// type DetectionModelInsight = {
-//   name?: string | null;
-//   status?: string | null;
-//   decision?: string | null;
-//   score?: number | null;
-//   rawScore?: number | null;
-//   normalizedScore?: number | null;
-//   finalScore?: number | null;
-// };
-
-// type DetectionDetails = {
-//   detectionVendor?: string;
-//   requestId?: string;
-//   mediaType?: string;
-//   overallStatus?: string;
-//   resultsSummaryStatus?: string | null;
-//   finalScore?: number | null;
-//   durationSec?: number | null;
-//   fileSize?: number | null;
-//   modelCount?: number;
-//   modelInsights?: DetectionModelInsight[];
-//   ensemble?: DetectionModelInsight | null;
-//   heatmaps?: Record<string, string>;
-//   aggregationResultUrl?: string | null;
-//   modelMetadataUrl?: string | null;
-// };
-
-// function clamp01(n: number): number {
-//   return Math.min(1, Math.max(0, n));
-// }
-
-// function pickModelPercent(model: DetectionModelInsight): number | null {
-//   if (typeof model.normalizedScore === "number" && Number.isFinite(model.normalizedScore)) {
-//     return Math.round(model.normalizedScore);
-//   }
-//   if (typeof model.finalScore === "number" && Number.isFinite(model.finalScore)) {
-//     return Math.round(model.finalScore);
-//   }
-//   if (typeof model.score === "number" && Number.isFinite(model.score)) {
-//     return Math.round(model.score <= 1 ? model.score * 100 : model.score);
-//   }
-//   return null;
-// }
-// type RealProcessorPayload = {
-//   mediaId?: string;
-//   ensemble?: {
-//     name?: string;
-//     score?: number;
-//     status?: string;
-//     decision?: string;
-//     rawScore?: number;
-//     finalScore?: number;
-//     normalizedScore?: number;
-//   };
-//   fileSize?: number;
-//   heatmaps?: Record<string, string>;
-//   modelInsights?: Array<{
-//     name?: string | null;
-//     status?: string | null;
-//     decision?: string | null;
-//     score?: number | null;
-//     rawScore?: number | null;
-//     normalizedScore?: number | null;
-//     finalScore?: number | null;
-//   }>;
-//   aggregationResultUrl?: string;
-//   modelMetadataUrl?: string;
-//   durationSec?: number;
-//   requestId?: string;
-// };
-// function normalizeDetailsFromPayload(payload: ResultPayload | null) {
-//   const details = payload?.details;
-//   if (details) return details;
-
-//   const real = payload?.processors?.real as RealProcessorPayload | undefined;
-//   if (!real) return null;
-
-//   const modelInsights = Array.isArray(real.modelInsights)
-//     ? real.modelInsights
-//     : real.ensemble
-//       ? [real.ensemble]
-//       : [];
-
-//   return {
-//     requestId: real.requestId ?? real.mediaId,
-//     fileSize: real.fileSize,
-//     modelInsights,
-//     modelCount: modelInsights.length,
-//     ensemble: real.ensemble,
-//     heatmaps: real.heatmaps,
-//     aggregationResultUrl: real.aggregationResultUrl,
-//     modelMetadataUrl: real.modelMetadataUrl,
-//     durationSec: real.durationSec,
-//   };
-// }
-// export function apiScanToUiScan(row: ApiScanRow): Scan {
-//   const status = mapApiStatus(row);
-//   const confidence = numConfidence(row.confidence);
-//   const payload = row.result_payload as ResultPayload | null;
-//   const details = normalizeDetailsFromPayload(payload);
-  
-//   function primaryProcessor(): { id: string; block: ProcessorBlock } | null {
-//     const processors = payload?.processors;
-//     if (!processors) return null;
-//     const ids = Object.keys(processors);
-//     if (ids.length === 0) return null;
-//     const primary = payload?.primaryProvider;
-//     const fallbackId = ids.includes("mock") ? "mock" : ids[0];
-//     const id =
-//       primary && processors[primary] ? primary : fallbackId != null ? fallbackId : null;
-//     if (!id) return null;
-//     const block = processors[id];
-//     if (!block) return null;
-//     return { id, block };
-//   }
-
-//   const applicableModels = Array.isArray(details?.modelInsights)
-//     ? details.modelInsights.filter(
-//         (m) => m && typeof m.name === "string" && (m.status || "").toUpperCase() !== "NOT_APPLICABLE",
-//       )
-//     : [];
-
-//   const detections =
-//     applicableModels.length > 0
-//       ? applicableModels.map((model) => {
-//           const pct = pickModelPercent(model);
-//           return {
-//             label: model.name || "Model",
-//             score: clamp01(((pct ?? 0) / 100)),
-//           };
-//         })
-//       : (() => {
-//           const proc = primaryProcessor();
-//           return proc && typeof proc.block.confidence === "number"
-//             ? [
-//                 {
-//                   label: `Model confidence (${proc.id})`,
-//                   score: clamp01(proc.block.confidence / 100),
-//                 },
-//               ]
-//             : [];
-//         })();
-
-//   const heatmaps = details?.heatmaps && typeof details.heatmaps === "object"
-//     ? Object.entries(details.heatmaps)
-//         .filter(([_, url]) => typeof url === "string" && url.trim().length > 0)
-//         .map(([modelName, url]) => ({ modelName, url }))
-//     : [];
-
-//   const metadata: { key: string; value: string }[] = [
-//     { key: "MIME type", value: row.mime_type || "—" },
-//     { key: "Source", value: row.source_type === "url" ? "URL" : "Upload" },
-//     ...(row.detection_provider
-//       ? [{ key: "Detection provider", value: row.detection_provider }]
-//       : []),
-//     ...(details?.detectionVendor
-//       ? [{ key: "Detection vendor", value: details.detectionVendor }]
-//       : []),
-//     ...(details?.requestId
-//       ? [{ key: "Provider request ID", value: details.requestId }]
-//       : []),
-//     ...(row.source_url ? [{ key: "URL", value: row.source_url }] : []),
-//     { key: "Status", value: row.status },
-//     {
-//       key: "Size",
-//       value: formatBytesToKb(
-//         row.file_size_bytes != null ? Number(row.file_size_bytes) : details?.fileSize,
-//       ),
-//     },
-//     ...(details?.durationSec != null
-//       ? [{ key: "Duration", value: formatDuration(details.durationSec) }]
-//       : []),
-//     ...(details?.resultsSummaryStatus
-//       ? [{ key: "Result", value: details.resultsSummaryStatus }]
-//       : []),
-//     ...(typeof details?.modelCount === "number"
-//       ? [{ key: "Signals", value: String(details.modelCount) }]
-//       : []),
-//     ...(details?.aggregationResultUrl
-//       ? [{ key: "Aggregation JSON", value: "Available" }]
-//       : []),
-//     ...(details?.modelMetadataUrl
-//       ? [{ key: "Model metadata", value: "Available" }]
-//       : []),
-//     ...(heatmaps.length > 0
-//       ? [{ key: "Heatmaps", value: String(heatmaps.length) }]
-//       : []),
-//   ];
-
-//   if (row.error_message) metadata.push({ key: "Error", value: row.error_message });
-//   if (row.summary) metadata.push({ key: "Summary", value: row.summary });
-
-//   const timeline = [
-//     { time: "—", event: `Scan record · ${row.status}` },
-//     ...(details?.requestId ? [{ time: "—", event: `Reality Defender request · ${details.requestId}` }] : []),
-//     ...(row.completed_at ? [{ time: "—", event: `Completed ${row.completed_at}` }] : []),
-//   ];
-
-//   const previewUrl =
-//     String(row.source_type || "").toLowerCase() === "url" &&
-//     row.source_url &&
-//     /^https?:\/\//i.test(String(row.source_url).trim())
-//       ? String(row.source_url).trim()
-//       : null;
-
-//   const canFetchMedia =
-//     String(row.source_type || "upload").toLowerCase() === "upload" &&
-//     Boolean(row.storage_key && String(row.storage_key).trim());
-
-//   return {
-//     id: row.id,
-//     title: row.filename || "Untitled",
-//     source: row.source_type === "url" ? "url" : "upload",
-//     kind: scanKind(row),
-//     status,
-//     confidence,
-//     createdAt: row.created_at,
-//     mimeType: row.mime_type || undefined,
-//     previewUrl,
-//     canFetchMedia,
-//     fileSizeBytes:
-//       row.file_size_bytes != null && Number.isFinite(Number(row.file_size_bytes))
-//         ? Math.trunc(Number(row.file_size_bytes))
-//         : details?.fileSize != null && Number.isFinite(Number(details.fileSize))
-//           ? Math.trunc(Number(details.fileSize))
-//           : undefined,
-//     detections,
-//     metadata,
-//     timeline,
-
-//     // extra fields for richer UI if your Scan type supports them
-//     modelInsights: applicableModels,
-//     modelCount:
-//       typeof details?.modelCount === "number" ? details.modelCount : applicableModels.length,
-//     heatmaps,
-//     aggregationResultUrl: details?.aggregationResultUrl || undefined,
-//     modelMetadataUrl: details?.modelMetadataUrl || undefined,
-//     durationSec:
-//       details?.durationSec != null && Number.isFinite(Number(details.durationSec))
-//         ? Number(details.durationSec)
-//         : undefined,
-//     providerRequestId: details?.requestId || undefined,
-//   };
-// }
-
-
-import type { MediaKind, Scan, ScanStatus } from "@/lib/mock-data";
+import type { MediaKind, Scan, ScanHeatmap, ScanStatus } from "@/lib/mock-data";
 import type { ApiScanRow } from "@/lib/api";
 
 function mapApiStatus(row: ApiScanRow): ScanStatus {
@@ -486,6 +59,14 @@ type DetectionModelInsight = {
   finalScore?: number | null;
 };
 
+/** Persisted heatmap ref (server JSON omits `storageKey` on GET /scan/:id). */
+type StoredHeatmapRef = {
+  modelName: string;
+  assetName: string;
+  mimeType?: string;
+  storageKey?: string;
+};
+
 type DetectionDetails = {
   detectionVendor?: string;
   requestId?: string;
@@ -498,9 +79,8 @@ type DetectionDetails = {
   modelCount?: number;
   modelInsights?: DetectionModelInsight[];
   ensemble?: DetectionModelInsight | null;
-  heatmaps?: Record<string, string>;
-  aggregationResultUrl?: string | null;
-  modelMetadataUrl?: string | null;
+  /** Vendor URL map (legacy) or owned refs after worker persist. */
+  heatmaps?: Record<string, string> | StoredHeatmapRef[];
 };
 
 type RealProcessorPayload = {
@@ -514,7 +94,9 @@ type RealProcessorPayload = {
   fileSize?: number;
   ensemble?: DetectionModelInsight;
   modelInsights?: DetectionModelInsight[];
-  heatmaps?: Record<string, string>;
+  heatmaps?: Record<string, string> | StoredHeatmapRef[];
+  artifactAggregationStorageKey?: string;
+  artifactModelMetadataStorageKey?: string;
   aggregationResultUrl?: string;
   modelMetadataUrl?: string;
 };
@@ -553,7 +135,9 @@ function isRealProcessorPayload(value: unknown): value is RealProcessorPayload {
     "modelInsights" in obj ||
     "heatmaps" in obj ||
     "aggregationResultUrl" in obj ||
-    "modelMetadataUrl" in obj
+    "modelMetadataUrl" in obj ||
+    "artifactAggregationStorageKey" in obj ||
+    "artifactModelMetadataStorageKey" in obj
   );
 }
 
@@ -602,10 +186,35 @@ function normalizeDetailsFromPayload(payload: ResultPayload | null): DetectionDe
     modelInsights,
     modelCount: modelInsights.length,
     ensemble: real.ensemble ?? null,
-    heatmaps: real.heatmaps,
-    aggregationResultUrl: real.aggregationResultUrl ?? null,
-    modelMetadataUrl: real.modelMetadataUrl ?? null,
+    heatmaps: real.heatmaps as DetectionDetails["heatmaps"],
   };
+}
+
+function heatmapsFromDetails(details: DetectionDetails | null): ScanHeatmap[] {
+  const h = details?.heatmaps;
+  if (!h) {
+    return [];
+  }
+  if (Array.isArray(h)) {
+    return h
+      .filter(
+        (e): e is StoredHeatmapRef =>
+          Boolean(e && typeof e === "object" && !Array.isArray(e)) &&
+          typeof (e as StoredHeatmapRef).modelName === "string" &&
+          typeof (e as StoredHeatmapRef).assetName === "string",
+      )
+      .map((r) => ({
+        modelName: r.modelName,
+        heatmapAsset: r.assetName,
+        mimeType: typeof r.mimeType === "string" ? r.mimeType : "image/png",
+      }));
+  }
+  if (typeof h === "object") {
+    return Object.entries(h as Record<string, string>)
+      .filter(([, url]) => typeof url === "string" && url.trim().length > 0)
+      .map(([modelName, url]) => ({ modelName, url: url.trim() }));
+  }
+  return [];
 }
 
 function getPrimaryProcessor(
@@ -632,13 +241,30 @@ export function apiScanToUiScan(row: ApiScanRow): Scan {
   const status = mapApiStatus(row);
   const confidence = numConfidence(row.confidence);
   const payload = row.result_payload as ResultPayload | null;
+  const rowExt = row as ApiScanRow & {
+    heatmaps_expired?: boolean;
+    artifact_aggregation_available?: boolean;
+    artifact_model_metadata_available?: boolean;
+  };
+  const heatmapsExpiredFlag = rowExt.heatmaps_expired === true;
+  const artifactAggregationAvailable = rowExt.artifact_aggregation_available === true;
+  const artifactModelMetadataAvailable = rowExt.artifact_model_metadata_available === true;
   const details = normalizeDetailsFromPayload(payload);
 
   const applicableModels = Array.isArray(details?.modelInsights)
-    ? details.modelInsights.filter(
-        (m) => m && typeof m.name === "string" && (m.status || "").toUpperCase() !== "NOT_APPLICABLE"
-      )
-    : [];
+  ? details.modelInsights.filter((m) => {
+      if (!m || typeof m.name !== "string") return false;
+
+      const status = (m.status || "").toUpperCase();
+      const pct = pickModelPercent(m);
+
+      return (
+        status !== "NOT_APPLICABLE" &&
+        status !== "ANALYZING" &&
+        pct !== null
+      );
+    })
+  : [];
 
   const detections =
     applicableModels.length > 0
@@ -675,12 +301,7 @@ export function apiScanToUiScan(row: ApiScanRow): Scan {
           return [];
         })();
 
-  const heatmaps =
-    details?.heatmaps && typeof details.heatmaps === "object"
-      ? Object.entries(details.heatmaps)
-          .filter(([_, url]) => typeof url === "string" && url.trim().length > 0)
-          .map(([modelName, url]) => ({ modelName, url }))
-      : [];
+  const heatmaps = heatmapsFromDetails(details);
 
   const metadata: { key: string; value: string }[] = [
     { key: "MIME type", value: row.mime_type || "—" },
@@ -700,8 +321,8 @@ export function apiScanToUiScan(row: ApiScanRow): Scan {
     ...(details?.resultsSummaryStatus ? [{ key: "Result", value: details.resultsSummaryStatus }] : []),
     ...(typeof details?.finalScore === "number" ? [{ key: "Final score", value: `${details.finalScore}%` }] : []),
     ...(typeof details?.modelCount === "number" ? [{ key: "Signals", value: String(details.modelCount) }] : []),
-    ...(details?.aggregationResultUrl ? [{ key: "Aggregation JSON", value: "Available" }] : []),
-    ...(details?.modelMetadataUrl ? [{ key: "Model metadata", value: "Available" }] : []),
+    ...(artifactAggregationAvailable ? [{ key: "Aggregation JSON", value: "Available" }] : []),
+    ...(artifactModelMetadataAvailable ? [{ key: "Model metadata", value: "Available" }] : []),
     ...(heatmaps.length > 0 ? [{ key: "Heatmaps", value: String(heatmaps.length) }] : []),
   ];
 
@@ -748,8 +369,9 @@ export function apiScanToUiScan(row: ApiScanRow): Scan {
     modelInsights: applicableModels,
     modelCount: typeof details?.modelCount === "number" ? details.modelCount : applicableModels.length,
     heatmaps,
-    aggregationResultUrl: details?.aggregationResultUrl || undefined,
-    modelMetadataUrl: details?.modelMetadataUrl || undefined,
+    heatmapsExpired: heatmapsExpiredFlag || undefined,
+    artifactAggregationAvailable: artifactAggregationAvailable || undefined,
+    artifactModelMetadataAvailable: artifactModelMetadataAvailable || undefined,
     durationSec:
       details?.durationSec != null && Number.isFinite(Number(details.durationSec))
         ? Number(details.durationSec)

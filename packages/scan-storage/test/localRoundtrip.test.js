@@ -65,4 +65,21 @@ describe("local scan storage", () => {
     }
     assert.equal(Buffer.concat(chunks).toString("utf8"), "3456");
   });
+
+  it("saveDerivedAsset writes structured derived key", async () => {
+    const s = new LocalScanStorage();
+    const userId = "11111111-1111-4111-8111-111111111111";
+    const scanId = "22222222-2222-4222-8222-222222222222";
+    const { storageKey } = await s.saveDerivedAsset({
+      userId,
+      scanId,
+      assetName: "hm_test.png",
+      buffer: Buffer.from("png-bytes"),
+      contentType: "image/png"
+    });
+    assert.ok(storageKey.includes("/derived/hm_test.png"));
+    const info = await s.getObjectInfo(storageKey);
+    assert.equal(info.exists, true);
+    assert.equal(info.size, 9);
+  });
 });

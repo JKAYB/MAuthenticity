@@ -59,6 +59,27 @@ class S3ScanStorage {
   }
 
   /**
+   * Persist a derived artifact under the structured scan prefix (same bucket as uploads).
+   * @param {{ userId: string; scanId: string; assetName: string; buffer: Buffer; contentType?: string }} params
+   * @returns {Promise<{ storageKey: string; storageProvider: 's3'; sizeBytes: number }>}
+   */
+  async saveDerivedAsset({ userId, scanId, assetName, buffer, contentType }) {
+    const relative = buildStructuredScanRelativeKey({
+      userId,
+      scanId,
+      kind: "derived",
+      assetName
+    });
+    const objectKey = applyObjectKeyPrefix(this.prefix, relative);
+    await this.putBufferAtStorageKey({
+      storageKey: objectKey,
+      buffer,
+      contentType: contentType || "application/octet-stream"
+    });
+    return { storageKey: objectKey, storageProvider: "s3", sizeBytes: buffer.length };
+  }
+
+  /**
    * Server-side copy within the same bucket (ops / migrations).
    * @param {{ sourceKey: string; destinationKey: string }} params
    */

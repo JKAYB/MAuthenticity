@@ -3,8 +3,11 @@ const {
   createScanFromUrl,
   getScanById,
   getScanHistory,
-  getScanMediaForUser
+  getScanMediaForUser,
+  getScanHeatmapAssetForUser,
+  getScanArtifactForUser
 } = require("../services/scan.service");
+const { formatScanRowForClient } = require("../services/scanDetailHeatmap.service");
 const {
   getScanActivityAnalytics,
   getDetectionMixAnalytics
@@ -82,7 +85,100 @@ async function getScanResult(req, res, next) {
       return res.status(404).json({ error: "Scan not found" });
     }
 
-    return res.json(scan);
+    const {
+      row,
+      heatmaps_expired,
+      artifact_aggregation_available,
+      artifact_model_metadata_available
+    } = formatScanRowForClient(scan);
+    return res.json({
+      ...row,
+      ...(heatmaps_expired ? { heatmaps_expired: true } : {}),
+      ...(artifact_aggregation_available ? { artifact_aggregation_available: true } : {}),
+      ...(artifact_model_metadata_available ? { artifact_model_metadata_available: true } : {})
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function streamScanArtifact(req, res, next) {
+  try {
+    const type = String(req.params.type || "")
+      .trim()
+      .toLowerCase();
+    const result = await getScanArtifactForUser({
+      scanId: req.params.id,
+      userId: req.user.id,
+      type
+    });
+    if (!result.ok) {
+      if (result.reason === "not_found") {
+        return res.status(404).json({ error: "Artifact not found" });
+      }
+      if (result.reason === "bad_type") {
+        return res.status(400).json({ error: "Invalid artifact type" });
+      }
+      if (result.reason === "no_media") {
+        return res.status(404).json({ error: "Artifact object missing" });
+      }
+      return res.status(500).json({ error: result.message || "Failed to read artifact" });
+    }
+
+    res.status(200);
+    res.setHeader("Content-Type", result.mimeType);
+    res.setHeader("Cache-Control", "private, max-age=120");
+    res.setHeader("Content-Length", String(result.contentLength));
+    res.setHeader(
+      "Content-Disposition",
+      buildContentDisposition("inline", result.downloadName || "artifact.json")
+    );
+
+    result.stream.on("error", (err) => {
+      if (!res.headersSent) {
+        res.status(500).json({ error: err.message || "Stream error" });
+      } else {
+        res.destroy(err);
+      }
+    });
+
+    result.stream.pipe(res);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function streamScanHeatmap(req, res, next) {
+  try {
+    const result = await getScanHeatmapAssetForUser({
+      scanId: req.params.id,
+      userId: req.user.id,
+      assetName: req.params.asset
+    });
+    if (!result.ok) {
+      if (result.reason === "not_found") {
+        return res.status(404).json({ error: "Heatmap not found" });
+      }
+      if (result.reason === "no_media") {
+        return res.status(404).json({ error: "Heatmap object missing" });
+      }
+      return res.status(500).json({ error: result.message || "Failed to read heatmap" });
+    }
+
+    res.status(200);
+    res.setHeader("Content-Type", result.mimeType);
+    res.setHeader("Cache-Control", "private, max-age=120");
+    res.setHeader("Content-Length", String(result.contentLength));
+
+    result.stream.on("error", (err) => {
+      if (!res.headersSent) {
+        res.status(500).json({ error: err.message || "Stream error" });
+      } else {
+        res.destroy(err);
+      }
+    });
+
+    result.stream.pipe(res);
   } catch (error) {
     return next(error);
   }
@@ -185,6 +281,8 @@ module.exports = {
   submitScanUpload,
   submitScanUrl,
   getScanResult,
+  streamScanArtifact,
+  streamScanHeatmap,
   streamScanMedia,
   scanHistory,
   scanAnalyticsActivity,

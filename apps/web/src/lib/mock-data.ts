@@ -13,7 +13,11 @@ export type ScanModelInsight = {
 
 export type ScanHeatmap = {
   modelName: string;
-  url: string;
+  /** Legacy vendor presigned URL (may expire). */
+  url?: string;
+  /** Served from MediaAuth storage via authenticated GET `/scan/:id/heatmaps/:asset`. */
+  heatmapAsset?: string;
+  mimeType?: string;
 };
 
 export interface Scan {
@@ -39,9 +43,13 @@ export interface Scan {
   modelInsights?: ScanModelInsight[];
   modelCount?: number;
   heatmaps?: ScanHeatmap[];
+  /** API strips expired vendor heatmaps and sets `heatmaps_expired` on the scan row. */
+  heatmapsExpired?: boolean;
 
-  aggregationResultUrl?: string;
-  modelMetadataUrl?: string;
+  /** Fetched via GET `/scan/:id/artifacts/aggregation` (not a URL on the scan object). */
+  artifactAggregationAvailable?: boolean;
+  /** Fetched via GET `/scan/:id/artifacts/model-metadata`. */
+  artifactModelMetadataAvailable?: boolean;
 
   durationSec?: number;
   providerRequestId?: string;

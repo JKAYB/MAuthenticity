@@ -25,6 +25,11 @@ const {
   plannedStructuredS3StorageKey,
   MIME_TO_EXT
 } = require("./keyUtil");
+const {
+  analyzePresignedHeatmapUrl,
+  parseAmzDateToUtcMs,
+  isVendorPresignedUrlExpiredOrNear
+} = require("./presignedUrlInspect");
 
 module.exports = {
   LocalScanStorage,
@@ -49,5 +54,8 @@ module.exports = {
   isStructuredOriginalScanRelativeKey,
   isStructuredOriginalScanStorageKey,
   plannedStructuredS3StorageKey,
-  MIME_TO_EXT
+  MIME_TO_EXT,
+  analyzePresignedHeatmapUrl,
+  parseAmzDateToUtcMs,
+  isVendorPresignedUrlExpiredOrNear
 };

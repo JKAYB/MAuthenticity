@@ -397,10 +397,14 @@ function mapMediaToProviderFields(media) {
     typeof mediaMeta.file_size === "number"
       ? mediaMeta.file_size
       : null;
+  // Vendor map: model → short-lived presigned GET URL. Do not treat as durable (see `persistRdHeatmaps.js`
+  // + `apps/api/src/services/scanDetailHeatmap.service.js`); worker persists bytes to scan-storage before DB write.
   const heatmaps =
     media.heatmaps && typeof media.heatmaps === "object"
       ? media.heatmaps
       : {};
+  // May be vendor HTTPS or an internal storage key string; worker `persistRdArtifacts` normalizes to
+  // `artifactAggregationStorageKey` / `artifactModelMetadataStorageKey` before DB persistence.
   const aggregationResultUrl =
     typeof media.aggregationResultUrl === "string"
       ? media.aggregationResultUrl

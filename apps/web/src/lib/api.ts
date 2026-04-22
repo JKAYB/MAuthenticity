@@ -131,6 +131,12 @@ export type ApiScanRow = {
   storage_key?: string | null;
   storage_provider?: string | null;
   detection_provider?: string | null;
+  /** Present when GET /scan/:id stripped expired vendor heatmap URLs from `result_payload`. */
+  heatmaps_expired?: boolean;
+  /** Aggregation JSON exists server-side; fetch via GET `/scan/:id/artifacts/aggregation`. */
+  artifact_aggregation_available?: boolean;
+  /** Model metadata JSON exists; fetch via GET `/scan/:id/artifacts/model-metadata`. */
+  artifact_model_metadata_available?: boolean;
   created_at: string;
   completed_at?: string | null;
   updated_at?: string | null;

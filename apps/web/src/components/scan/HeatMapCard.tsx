@@ -6,13 +6,26 @@ type Heatmap = {
   url: string;
 };
 
-export function HeatMapCard({ heatmap }: { heatmap: Heatmap }) {
+export function HeatMapCard({
+  heatmap,
+  /** When set (e.g. owned heatmaps), Retry refreshes upstream data before reloading the image. */
+  onRetry,
+}: {
+  heatmap: Heatmap;
+  onRetry?: () => void | Promise<void>;
+}) {
   const [failed, setFailed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
-  const retry = () => {
+  const retry = async () => {
     setFailed(false);
-    setRetryKey((k) => k + 1); // force reload
+    try {
+      await onRetry?.();
+    } catch {
+      setFailed(true);
+      return;
+    }
+    setRetryKey((k) => k + 1);
   };
 
   return (

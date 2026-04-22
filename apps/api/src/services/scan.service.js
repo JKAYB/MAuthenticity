@@ -9,8 +9,14 @@ const { processScanById, markFailed } = require("@media-auth/worker/process-scan
 const { pool } = require("../db/pool");
 const { getScanExecutionMode } = require("../config/scanExecution");
 const { parseBytesRange } = require("../utils/scanMediaRange.util");
+const { findHeatmapAssetRef } = require("./scanDetailHeatmap.service");
+const {
+  resolveArtifactAggregationStorageKey,
+  resolveArtifactModelMetadataStorageKey,
+  assertArtifactKeyScopedToScan
+} = require("./scanDetailArtifact.service");
 
-const SCAN_SELECT_FIELDS = `id, filename, mime_type, file_size_bytes, status, confidence, is_ai_generated,
+const SCAN_SELECT_FIELDS = `id, user_id, filename, mime_type, file_size_bytes, status, confidence, is_ai_generated,
             result_payload, error_message, summary, source_type, source_url, storage_key, storage_provider, detection_provider,
             created_at, updated_at, completed_at`;
 
@@ -234,6 +240,107 @@ async function getScanMediaForUser({ scanId, userId, rangeHeader }) {
   }
 }
 
+/**
+ * Stream a persisted heatmap object (structured `derived/` key) for the scan owner.
+ * @param {{ scanId: string; userId: string; assetName: string }} params
+ */
+async function getScanHeatmapAssetForUser({ scanId, userId, assetName }) {
+  const row = await getScanById({ scanId, userId });
+  if (!row) {
+    return { ok: false, reason: "not_found" };
+  }
+  const ref = findHeatmapAssetRef(row.result_payload, assetName);
+  if (!ref) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const provider = row.storage_provider ? String(row.storage_provider).trim().toLowerCase() : "local";
+  const mimeType = ref.mimeType || "image/png";
+
+  try {
+    const storage = getStorageForProvider(provider);
+    const info = await storage.getObjectInfo(ref.storageKey);
+    if (!info.exists) {
+      return { ok: false, reason: "no_media" };
+    }
+    const objectSize =
+      info.size != null && Number.isFinite(Number(info.size)) ? Math.trunc(Number(info.size)) : 0;
+    if (!objectSize) {
+      return { ok: false, reason: "stream_error", message: "Could not determine heatmap size" };
+    }
+
+    const stream = await storage.getDownloadStream(ref.storageKey);
+    return {
+      ok: true,
+      stream,
+      mimeType,
+      contentLength: objectSize
+    };
+  } catch (e) {
+    const message = e && e.message ? String(e.message) : "Failed to read heatmap";
+    return { ok: false, reason: "stream_error", message };
+  }
+}
+
+const ARTIFACT_TYPES = new Set(["aggregation", "model-metadata"]);
+
+/**
+ * Stream detection artifact bytes (JSON) for the scan owner.
+ * @param {{ scanId: string; userId: string; type: string }} params
+ */
+async function getScanArtifactForUser({ scanId, userId, type }) {
+  const row = await getScanById({ scanId, userId });
+  if (!row) {
+    return { ok: false, reason: "not_found" };
+  }
+  const t = String(type || "")
+    .trim()
+    .toLowerCase();
+  if (!ARTIFACT_TYPES.has(t)) {
+    return { ok: false, reason: "bad_type" };
+  }
+
+  const payload = row.result_payload;
+  const storageKey =
+    t === "aggregation"
+      ? resolveArtifactAggregationStorageKey(payload)
+      : resolveArtifactModelMetadataStorageKey(payload);
+
+  const ownerId = row.user_id != null ? String(row.user_id) : "";
+  if (!storageKey || !assertArtifactKeyScopedToScan(storageKey, ownerId, scanId)) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const provider = row.storage_provider ? String(row.storage_provider).trim().toLowerCase() : "local";
+  const mimeType = "application/json";
+  const downloadName = t === "aggregation" ? "aggregation.json" : "model-metadata.json";
+
+  try {
+    const storage = getStorageForProvider(provider);
+    const info = await storage.getObjectInfo(storageKey);
+    if (!info.exists) {
+      return { ok: false, reason: "no_media" };
+    }
+    const objectSize =
+      info.size != null && Number.isFinite(Number(info.size)) ? Math.trunc(Number(info.size)) : 0;
+    if (!objectSize) {
+      return { ok: false, reason: "stream_error", message: "Could not determine artifact size" };
+    }
+
+    const stream = await storage.getDownloadStream(storageKey);
+    return {
+      ok: true,
+      stream,
+      mimeType,
+      contentLength: objectSize,
+      downloadName
+    };
+  } catch (e) {
+    const message = e && e.message ? String(e.message) : "Failed to read artifact";
+    return { ok: false, reason: "stream_error", message };
+  }
+}
+
 async function getScanHistory({ userId, page, limit }) {
   const offset = (page - 1) * limit;
   const [{ rows: dataRows }, { rows: countRows }] = await Promise.all([
@@ -263,5 +370,7 @@ module.exports = {
   createScanFromUrl,
   getScanById,
   getScanHistory,
-  getScanMediaForUser
+  getScanMediaForUser,
+  getScanHeatmapAssetForUser,
+  getScanArtifactForUser
 };

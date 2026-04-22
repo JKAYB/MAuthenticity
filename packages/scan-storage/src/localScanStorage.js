@@ -59,6 +59,24 @@ class LocalScanStorage {
   }
 
   /**
+   * Persist a derived artifact (e.g. Reality Defender heatmap) next to the scan upload layout.
+   * @param {{ userId: string; scanId: string; assetName: string; buffer: Buffer; contentType?: string }} params
+   * @returns {Promise<{ storageKey: string; storageProvider: 'local'; sizeBytes: number }>}
+   */
+  async saveDerivedAsset({ userId, scanId, assetName, buffer, contentType: _contentType }) {
+    const objectKey = buildStructuredScanRelativeKey({
+      userId,
+      scanId,
+      kind: "derived",
+      assetName
+    });
+    const absFile = path.join(uploadBaseDir(), ...objectKey.split("/"));
+    await fs.mkdir(path.dirname(absFile), { recursive: true });
+    await fs.writeFile(absFile, buffer, { mode: 0o600 });
+    return { storageKey: objectKey, storageProvider: "local", sizeBytes: buffer.length };
+  }
+
+  /**
    * @param {string} storageKey
    * @returns {Promise<{ exists: boolean; size?: number; contentType?: string | null }>}
    */

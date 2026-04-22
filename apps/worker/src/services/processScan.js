@@ -89,7 +89,15 @@ async function processScanById({ pool, scanId, userId, logPrefix = LOG }) {
   let resolved;
   try {
     resolved = await resolveMediaInput(row);
-    const detection = await runDetection(resolved.input, { scanId, userId: userId != null ? userId : null });
+    const effectiveUserId = userId != null ? userId : row.user_id;
+    const storageProvider = row.storage_provider
+      ? String(row.storage_provider).trim().toLowerCase()
+      : "local";
+    const detection = await runDetection(resolved.input, {
+      scanId,
+      userId: effectiveUserId != null ? String(effectiveUserId) : null,
+      storageProvider
+    });
 
     await markCompleted(pool, {
       scanId,

@@ -3,6 +3,8 @@ const {
   submitScanUpload,
   submitScanUrl,
   getScanResult,
+  streamScanArtifact,
+  streamScanHeatmap,
   streamScanMedia,
   scanHistory,
   scanAnalyticsActivity,
@@ -36,6 +38,8 @@ router.get("/analytics/activity", scanAnalyticsActivity);
 router.get("/analytics/detection-mix", scanAnalyticsDetectionMix);
 router.get("/history", scanHistory);
 router.get("/:id/media", streamScanMedia);
+router.get("/:id/artifacts/:type", streamScanArtifact);
+router.get("/:id/heatmaps/:asset", streamScanHeatmap);
 router.get("/:id", getScanResult);
 
 module.exports = router;

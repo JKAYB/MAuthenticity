@@ -22,7 +22,8 @@ import { downloadScanOriginal } from "@/lib/scan-media-download";
 import { formatFileSize, strictUploadPreviewKind } from "@/lib/scan-media";
 import { cn } from "@/lib/utils";
 import { debounce } from "lodash";
-import { HeatMapCard } from "@/components/scan/HeatMapCard";
+import { ResolvedHeatmapTile } from "@/components/scan/ResolvedHeatmapTile";
+import { ArtifactViewButton } from "@/components/scan/ArtifactViewButton";
 
 export const Route = createFileRoute("/_app/scans/$id")({
   head: () => ({
@@ -50,6 +51,7 @@ function ScanDetail() {
   const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
   const rowQuery = useScanByIdQuery(id, !liveDemo);
   const [downloadBusy, setDownloadBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
 
   const debouncedDownload = useMemo(
     () =>
@@ -176,9 +178,31 @@ function ScanDetail() {
           <button
             type="button"
             aria-label="Export report"
-            className="inline-flex size-9 shrink-0 items-center justify-center gap-0 rounded-lg bg-gradient-to-br from-primary to-accent text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] sm:h-9 sm:w-auto sm:min-w-0 sm:px-3 sm:gap-1.5"
+            disabled={exportBusy}
+            onClick={() => {
+              void (async () => {
+                if (!scan || exportBusy) {
+                  return;
+                }
+                setExportBusy(true);
+                try {
+                  const { exportScanReportPdf } = await import("@/lib/export-scan-report-pdf");
+                  await exportScanReportPdf(scan);
+                  toast.success("Report exported");
+                } catch {
+                  toast.error("Export failed");
+                } finally {
+                  setExportBusy(false);
+                }
+              })();
+            }}
+            className="inline-flex size-9 shrink-0 items-center justify-center gap-0 rounded-lg bg-gradient-to-br from-primary to-accent text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] disabled:pointer-events-none disabled:opacity-60 sm:h-9 sm:w-auto sm:min-w-0 sm:px-3 sm:gap-1.5"
           >
-            <Download className="h-4 w-4 shrink-0" aria-hidden />
+            {exportBusy ? (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+            ) : (
+              <Download className="h-4 w-4 shrink-0" aria-hidden />
+            )}
             <span className="hidden sm:inline">Export report</span>
           </button>
         </div>
@@ -417,13 +441,15 @@ function ScanDetail() {
 
           {visibleHeatmaps.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleHeatmaps.map((heatmap) => (
-              <HeatMapCard
-                key={heatmap.modelName}
-                heatmap={heatmap}
-              />
-            ))}
-          </div>
+              {visibleHeatmaps.map((heatmap) => (
+                <ResolvedHeatmapTile key={heatmap.modelName} scanId={id} heatmap={heatmap} />
+              ))}
+            </div>
+          ) : scan.heatmapsExpired ? (
+            <p className="text-sm text-muted-foreground">
+              Heatmap previews are no longer available (secure vendor links expired). New scans store heatmaps in
+              MediaAuth so previews keep working.
+            </p>
           ) : (
             <p className="text-sm text-muted-foreground">No heatmaps available.</p>
           )}
@@ -437,16 +463,8 @@ function ScanDetail() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Combined analysis output from the detection pipeline.
               </p>
-              {scan.aggregationResultUrl ? (
-                <a
-                  href={scan.aggregationResultUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                >
-                  <FileText className="h-4 w-4" />
-                  View artifact
-                </a>
+              {scan.artifactAggregationAvailable ? (
+                <ArtifactViewButton scanId={id} artifactType="aggregation" label="View artifact" />
               ) : (
                 <div className="mt-3 text-sm text-muted-foreground">Not available</div>
               )}
@@ -459,16 +477,8 @@ function ScanDetail() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Provider metadata and model-level artifact output.
               </p>
-              {scan.modelMetadataUrl ? (
-                <a
-                  href={scan.modelMetadataUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                >
-                  <FileText className="h-4 w-4" />
-                  View artifact
-                </a>
+              {scan.artifactModelMetadataAvailable ? (
+                <ArtifactViewButton scanId={id} artifactType="model-metadata" label="View artifact" />
               ) : (
                 <div className="mt-3 text-sm text-muted-foreground">Not available</div>
               )}
