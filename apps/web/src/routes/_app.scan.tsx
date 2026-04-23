@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
@@ -16,7 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { submitScanFile, submitScanUrl } from "@/lib/api";
+import { getScanProviders, submitScanFile, submitScanUrl } from "@/lib/api";
 import { scanKeys } from "@/features/scan/queryKeys";
 import { getLiveDemoSnapshot, isLiveDemo, subscribeLiveDemo } from "@/lib/demo-mode";
 
@@ -36,7 +37,24 @@ function ScanPage() {
   const [progress, setProgress] = useState(0);
   const [files, setFiles] = useState<File[]>([]);
   const [url, setUrl] = useState("");
+  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const navigate = useNavigate();
+  const providersQuery = useQuery({
+    queryKey: ["scan-providers"],
+    queryFn: getScanProviders,
+    enabled: !liveDemo,
+  });
+  const providers = providersQuery.data ?? [];
+
+  useEffect(() => {
+    if (providers.length === 0) return;
+    setSelectedProviders((prev) => {
+      const allowed = new Set(providers.filter((p) => p.enabled).map((p) => p.id));
+      const kept = prev.filter((id) => allowed.has(id));
+      if (kept.length > 0) return kept;
+      return providers.filter((p) => p.enabled).map((p) => p.id);
+    });
+  }, [providers]);
 
   useEffect(() => {
     if (liveDemo) {
@@ -78,7 +96,7 @@ function ScanPage() {
           return;
         }
         setProgress(40);
-        const res = await submitScanUrl(trimmed);
+        const res = await submitScanUrl(trimmed, selectedProviders);
         id = res.id;
       } else {
         const file = files[0];
@@ -91,7 +109,7 @@ function ScanPage() {
           toast.message("Only the first file will be submitted (API accepts one file per request).");
         }
         setProgress(25);
-        const res = await submitScanFile(file);
+        const res = await submitScanFile(file, selectedProviders);
         id = res.id;
       }
       await qc.invalidateQueries({ queryKey: scanKeys.all });
@@ -107,7 +125,9 @@ function ScanPage() {
   };
 
   const canStart =
-    !liveDemo && ((tab === "upload" && files.length > 0) || (tab === "url" && url.length > 4));
+    !liveDemo &&
+    selectedProviders.length > 0 &&
+    ((tab === "upload" && files.length > 0) || (tab === "url" && url.length > 4));
 
   return (
     <div className="mx-auto space-y-6">
@@ -183,6 +203,43 @@ function ScanPage() {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.25 }}
             >
+              <div className="mb-5 space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Providers</div>
+                {providersQuery.isPending ? (
+                  <div className="text-xs text-muted-foreground">Loading providers…</div>
+                ) : providersQuery.isError ? (
+                  <div className="text-xs text-destructive">Failed to load providers</div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {providers.map((provider) => {
+                      const checked = selectedProviders.includes(provider.id);
+                      const disabled = !provider.enabled || liveDemo;
+                      return (
+                        <button
+                          key={provider.id}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => {
+                            setSelectedProviders((prev) =>
+                              checked ? prev.filter((id) => id !== provider.id) : [...prev, provider.id]
+                            );
+                          }}
+                          className={cn(
+                            "rounded-full border px-3 py-1 text-xs transition",
+                            checked
+                              ? "border-primary/60 bg-primary/15 text-foreground"
+                              : "border-border bg-card/50 text-muted-foreground",
+                            disabled && "cursor-not-allowed opacity-50"
+                          )}
+                        >
+                          {provider.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {tab === "upload" ? (
                 <>
                   <div

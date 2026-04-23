@@ -2,10 +2,12 @@ const express = require("express");
 const {
   submitScanUpload,
   submitScanUrl,
+  listScanProviders,
   getScanResult,
   streamScanArtifact,
   streamScanHeatmap,
   streamScanMedia,
+  retryScan,
   scanHistory,
   scanAnalyticsActivity,
   scanAnalyticsDetectionMix
@@ -34,9 +36,11 @@ function routeCreateScan(req, res, next) {
 
 router.post("/", routeCreateScan);
 router.use(normalizeUploadError);
+router.get("/providers", listScanProviders);
 router.get("/analytics/activity", scanAnalyticsActivity);
 router.get("/analytics/detection-mix", scanAnalyticsDetectionMix);
 router.get("/history", scanHistory);
+router.post("/:id/retry", retryScan);
 router.get("/:id/media", streamScanMedia);
 router.get("/:id/artifacts/:type", streamScanArtifact);
 router.get("/:id/heatmaps/:asset", streamScanHeatmap);

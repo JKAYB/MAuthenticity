@@ -21,7 +21,7 @@ export function useScanHistoryQuery(options: {
 }) {
   const { page, limit, mediaType, enabled = true } = options;
   return useQuery({
-    queryKey: [...scanKeys.history(page, limit), mediaType || "all-media"],
+    queryKey: scanKeys.history(page, limit, mediaType),
     queryFn: async (): Promise<Scan[]> => {
       const res = await getScanHistory({ page, limit, mediaType });
       return (res.data || []).map(apiScanToUiScan);

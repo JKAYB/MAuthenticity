@@ -315,6 +315,132 @@ d("API scan integration", () => {
     }
   });
 
+  it("retry reuses original selected providers snapshot even after provider config change", async () => {
+    const email = `u-retry-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const password = "TestUser1!";
+    const token = await signupLogin(baseUrl, email, password);
+    const userId = (await pool.query(`SELECT id FROM users WHERE email = $1`, [email])).rows[0].id;
+    createdUserIds.push(userId);
+
+    const fd = new FormData();
+    fd.append("file", new Blob([MIN_PNG], { type: "image/png" }), "retry.png");
+    const created = await fetchJson(`${baseUrl}/scan`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd
+    });
+    assert.equal(created.res.status, 202, JSON.stringify(created.body));
+    const originalScanId = created.body.id;
+    createdScanIds.push(originalScanId);
+
+    await pool.query(
+      `UPDATE scans
+       SET status = 'failed',
+           error_message = 'Synthetic failure for retry test',
+           last_error = 'Synthetic failure for retry test',
+           selected_providers = ARRAY['hive']::text[]
+       WHERE id = $1`,
+      [originalScanId]
+    );
+
+    const { scanProviders } = require("../../src/config/scanProviders");
+    const hive = scanProviders().find((p) => p.id === "hive");
+    assert.ok(hive, "hive provider missing in config");
+    const originalHiveEnabled = hive.enabled;
+    hive.enabled = false;
+
+    try {
+      const retried = await fetchJson(`${baseUrl}/scan/${originalScanId}/retry`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      assert.equal(retried.res.status, 202, JSON.stringify(retried.body));
+      assert.equal(retried.body.ok, true);
+      assert.ok(retried.body.scan && retried.body.scan.id);
+      const retryScanId = retried.body.scan.id;
+      createdScanIds.push(retryScanId);
+
+      const { rows } = await pool.query(
+        `SELECT selected_providers, retry_of_scan_id, scan_group_id, attempt_number
+         FROM scans
+         WHERE id = $1`,
+        [retryScanId]
+      );
+      assert.equal(rows.length, 1);
+      assert.deepEqual(rows[0].selected_providers, ["hive"]);
+      assert.equal(rows[0].retry_of_scan_id, originalScanId);
+      assert.ok(rows[0].scan_group_id);
+      assert.equal(Number(rows[0].attempt_number), 2);
+    } finally {
+      hive.enabled = originalHiveEnabled;
+    }
+  });
+
+  it("retry_count increments across multiple retries", async () => {
+    const email = `u-retry-count-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const password = "TestUser1!";
+    const token = await signupLogin(baseUrl, email, password);
+    const userId = (await pool.query(`SELECT id FROM users WHERE email = $1`, [email])).rows[0].id;
+    createdUserIds.push(userId);
+
+    const fd = new FormData();
+    fd.append("file", new Blob([MIN_PNG], { type: "image/png" }), "retry-count.png");
+    const created = await fetchJson(`${baseUrl}/scan`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd
+    });
+    assert.equal(created.res.status, 202, JSON.stringify(created.body));
+    let currentScanId = created.body.id;
+    createdScanIds.push(currentScanId);
+
+    await pool.query(
+      `UPDATE scans
+       SET status = 'failed',
+           error_message = 'Force retry 1',
+           last_error = 'Force retry 1',
+           retry_count = 0,
+           selected_providers = ARRAY['hive']::text[]
+       WHERE id = $1`,
+      [currentScanId]
+    );
+
+    const retry1 = await fetchJson(`${baseUrl}/scan/${currentScanId}/retry`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    assert.equal(retry1.res.status, 202, JSON.stringify(retry1.body));
+    assert.equal(Number(retry1.body.scan.retryCount), 1);
+    const retry1Id = retry1.body.scan.id;
+    createdScanIds.push(retry1Id);
+
+    let row = await pool.query(`SELECT retry_count, attempt_number FROM scans WHERE id = $1`, [retry1Id]);
+    assert.equal(Number(row.rows[0].retry_count), 1);
+    assert.equal(Number(row.rows[0].attempt_number), 2);
+
+    await pool.query(
+      `UPDATE scans
+       SET status = 'failed',
+           error_message = 'Force retry 2',
+           last_error = 'Force retry 2'
+       WHERE id = $1`,
+      [retry1Id]
+    );
+
+    const retry2 = await fetchJson(`${baseUrl}/scan/${retry1Id}/retry`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    assert.equal(retry2.res.status, 202, JSON.stringify(retry2.body));
+    assert.equal(Number(retry2.body.scan.retryCount), 2);
+    const retry2Id = retry2.body.scan.id;
+    createdScanIds.push(retry2Id);
+
+    row = await pool.query(`SELECT retry_count, attempt_number FROM scans WHERE id = $1`, [retry2Id]);
+    assert.equal(Number(row.rows[0].retry_count), 2);
+    assert.equal(Number(row.rows[0].attempt_number), 3);
+  });
+
   it("rejects malformed JSON for URL scan", async () => {
     const email = `u-${crypto.randomBytes(6).toString("hex")}@t.local`;
     const password = "TestUser1!";

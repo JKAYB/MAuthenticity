@@ -1,5 +1,9 @@
 const { mockProvider } = require("./providers/mockProvider");
 const { realProvider } = require("./providers/realProvider");
+const { hiveProvider } = require("./providers/hiveProvider");
+const {
+  enabledScanProviders
+} = require("../../../api/src/config/scanProviders");
 
 /**
  * Register detection providers here. Each must implement:
@@ -9,7 +13,12 @@ const { realProvider } = require("./providers/realProvider");
  */
 const providersById = {
   [mockProvider.id]: mockProvider,
-  [realProvider.id]: realProvider
+  [realProvider.id]: realProvider,
+  [hiveProvider.id]: hiveProvider,
+  reality_defender: {
+    id: "reality_defender",
+    detect: realProvider.detect
+  }
 };
 
 function normalizeEnvId(raw) {
@@ -19,18 +28,29 @@ function normalizeEnvId(raw) {
   return s || "mock";
 }
 
-/**
- * Active provider id from `DETECTION_PROVIDER` (default `mock`). Unknown ids fall back to mock.
- */
-function resolveActiveProviderId() {
-  const wanted = normalizeEnvId(process.env.DETECTION_PROVIDER);
-  if (!providersById[wanted]) {
-    console.warn(
-      `[detection] DETECTION_PROVIDER="${wanted}" is not registered; using "${mockProvider.id}"`
-    );
-    return mockProvider.id;
+function resolveActiveProviderIds(requestedIds) {
+  if (Array.isArray(requestedIds) && requestedIds.length > 0) {
+    const resolved = requestedIds
+      .map(normalizeEnvId)
+      .filter((id) => providersById[id]);
+    if (resolved.length > 0) {
+      return resolved;
+    }
   }
-  return wanted;
+  const enabled = enabledScanProviders()
+    .map((p) => p.id)
+    .filter((id) => providersById[id]);
+  if (enabled.length > 0) {
+    return enabled;
+  }
+  const wanted = normalizeEnvId(process.env.DETECTION_PROVIDER);
+  if (providersById[wanted]) {
+    return [wanted];
+  }
+  console.warn(
+    `[detection] No enabled providers resolved; using fallback "${mockProvider.id}"`
+  );
+  return [mockProvider.id];
 }
 
 function getProvider(providerId) {
@@ -39,6 +59,6 @@ function getProvider(providerId) {
 
 module.exports = {
   providersById,
-  resolveActiveProviderId,
+  resolveActiveProviderIds,
   getProvider
 };

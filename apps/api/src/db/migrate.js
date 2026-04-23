@@ -44,6 +44,7 @@ async function runMigrations() {
       is_ai_generated BOOLEAN,
       result_payload JSONB,
       error_message TEXT,
+      is_retry BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       completed_at TIMESTAMPTZ
@@ -63,6 +64,14 @@ async function runMigrations() {
   await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS source_url TEXT`);
   await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS storage_key TEXT`);
   await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS detection_provider TEXT`);
+  await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS scan_group_id UUID`);
+  await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS retry_of_scan_id UUID`);
+  await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS attempt_number INTEGER NOT NULL DEFAULT 1`);
+  await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS last_error TEXT`);
+  await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS failed_providers JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS error_payload JSONB`);
+  await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS is_retry BOOLEAN NOT NULL DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS provider_statuses JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await pool.query(
     `ALTER TABLE scans ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
   );
@@ -87,6 +96,23 @@ async function runMigrations() {
     `ALTER TABLE scans ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0`
   );
   await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS storage_provider TEXT`);
+  await pool.query(
+    `ALTER TABLE scans ADD COLUMN IF NOT EXISTS selected_providers TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`
+  );
+  await pool.query(`UPDATE scans SET scan_group_id = id WHERE scan_group_id IS NULL`);
+  await pool.query(`UPDATE scans SET attempt_number = 1 WHERE attempt_number IS NULL OR attempt_number < 1`);
+  await pool.query(`UPDATE scans SET last_error = error_message WHERE last_error IS NULL AND error_message IS NOT NULL`);
+  await pool.query(`UPDATE scans SET failed_providers = '[]'::jsonb WHERE failed_providers IS NULL`);
+  await pool.query(`UPDATE scans SET is_retry = FALSE WHERE is_retry IS NULL`);
+  await pool.query(`UPDATE scans SET provider_statuses = '{}'::jsonb WHERE provider_statuses IS NULL`);
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS scans_group_created_idx
+     ON scans (scan_group_id, created_at DESC)`
+  );
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS idx_scans_group_attempt
+     ON scans (scan_group_id, attempt_number DESC)`
+  );
 
   await pool.query(`ALTER TABLE scans ADD COLUMN IF NOT EXISTS old_storage_key TEXT`);
   await pool.query(

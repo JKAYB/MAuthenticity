@@ -2,6 +2,7 @@ import { format, parseISO } from "date-fns";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { Scan, ScanModelInsight, ScanStatus } from "@/lib/mock-data";
+import { formatScorePercentage } from "@/lib/percentage";
 
 const PAGE_MARGIN = 48;
 const FOOTER_RESERVE = 44;
@@ -193,7 +194,7 @@ export async function exportScanReportPdf(scan: Scan): Promise<void> {
   y = drawSectionHeading(doc, "Signal scores", y);
   const detRows: string[][] =
     scan.detections?.length > 0
-      ? scan.detections.map((d) => [d.label, `${Math.round(Math.min(1, Math.max(0, d.score)) * 100)}%`])
+      ? scan.detections.map((d) => [d.label, `${formatScorePercentage(d.score)}%`])
       : [["Not available", "—"]];
   autoTable(doc, {
     startY: y,

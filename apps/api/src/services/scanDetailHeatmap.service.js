@@ -37,7 +37,12 @@ function deepCloneJson(v) {
  */
 function sanitizeHeatmapsOnClientPayload(payload) {
   let heatmapsExpired = false;
-  const real = payload && typeof payload === "object" && !Array.isArray(payload) ? payload.processors?.real : null;
+  const processors =
+    payload && typeof payload === "object" && !Array.isArray(payload) ? payload.processors : null;
+  const real =
+    processors && typeof processors === "object" && !Array.isArray(processors)
+      ? processors.reality_defender || processors.real
+      : null;
   if (!real || typeof real !== "object" || Array.isArray(real)) {
     return false;
   }
@@ -147,9 +152,14 @@ function findHeatmapAssetRef(resultPayload, assetName) {
   if (!HEATMAP_ASSET_RE.test(want)) {
     return null;
   }
-  const real = resultPayload && typeof resultPayload === "object" && !Array.isArray(resultPayload)
-    ? resultPayload.processors?.real
-    : null;
+  const processors =
+    resultPayload && typeof resultPayload === "object" && !Array.isArray(resultPayload)
+      ? resultPayload.processors
+      : null;
+  const real =
+    processors && typeof processors === "object" && !Array.isArray(processors)
+      ? processors.reality_defender || processors.real
+      : null;
   const hm = real && typeof real === "object" && !Array.isArray(real) ? real.heatmaps : null;
   if (!Array.isArray(hm)) {
     return null;

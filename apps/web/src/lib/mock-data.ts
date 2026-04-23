@@ -1,3 +1,5 @@
+import type { ProviderSection, ProviderTone } from "@/lib/scan-providers";
+
 export type ScanStatus = "safe" | "flagged" | "suspicious" | "pending";
 export type MediaKind = "image" | "video" | "audio" | "url";
 export type NormalizedMediaType = "image" | "video" | "audio" | "document" | "other";
@@ -21,12 +23,19 @@ export type ScanHeatmap = {
   mimeType?: string;
 };
 
+export type Detection = {
+  label: string;
+  score: number;
+  tone?: ProviderTone;
+};
+
 export interface Scan {
   id: string;
   title: string;
   source: "upload" | "url";  
   kind: MediaKind;
   status: ScanStatus;
+  rawStatus?: string;
   confidence: number; // 0-100
   createdAt: string;
   thumbnail?: string;
@@ -40,7 +49,11 @@ export interface Scan {
   canFetchMedia?: boolean;
   /** Original file size in bytes when known (API `file_size_bytes`). */
   fileSizeBytes?: number;
-  detections: { label: string; score: number }[];
+  detections: Detection[];
+  hiveDetections?: Detection[];
+  providerSections?: ProviderSection[];
+  resultPayload?: unknown;
+  primaryProvider?: string;
   metadata: { key: string; value: string }[];
   timeline: { time: string; event: string }[];
   modelInsights?: ScanModelInsight[];
@@ -56,6 +69,24 @@ export interface Scan {
 
   durationSec?: number;
   providerRequestId?: string;
+  scanGroupId?: string;
+  retryOfScanId?: string | null;
+  attemptNumber?: number;
+  retryCount?: number;
+  lastError?: string | null;
+  providerExecution?: Array<{
+    id: string;
+    name: string;
+    status: "queued" | "processing" | "completed" | "failed";
+  }>;
+  attempts?: Array<{
+    id: string;
+    status: string;
+    attemptNumber: number;
+    createdAt?: string;
+    completedAt?: string | null;
+    retryOfScanId?: string | null;
+  }>;
 }
 
 const now = Date.now();

@@ -20,7 +20,10 @@ function getRealProcessorBlock(payload) {
   if (!p) {
     return null;
   }
-  const real = p.processors && typeof p.processors === "object" && !Array.isArray(p.processors) ? p.processors.real : null;
+  const real =
+    p.processors && typeof p.processors === "object" && !Array.isArray(p.processors)
+      ? p.processors.reality_defender || p.processors.real
+      : null;
   return real && typeof real === "object" && !Array.isArray(real) ? /** @type {Record<string, unknown>} */ (real) : null;
 }
 

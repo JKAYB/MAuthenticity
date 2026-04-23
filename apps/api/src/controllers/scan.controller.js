@@ -3,15 +3,19 @@ const {
   createScanFromUrl,
   getScanById,
   getScanHistory,
+  getScanAttemptsByGroup,
   getScanMediaForUser,
   getScanHeatmapAssetForUser,
-  getScanArtifactForUser
+  getScanArtifactForUser,
+  retryFailedScanForUser
 } = require("../services/scan.service");
 const { formatScanRowForClient } = require("../services/scanDetailHeatmap.service");
 const {
   getScanActivityAnalytics,
   getDetectionMixAnalytics
 } = require("../services/scanAnalytics.service");
+const { canRetry } = require("../services/retryPolicy.service");
+const { providerById } = require("../config/scanProviders");
 
 const MAX_URL_LEN = 2048;
 const {
@@ -19,6 +23,7 @@ const {
   wantsAttachmentDownload
 } = require("../utils/contentDisposition.util");
 const { MEDIA_TYPE_VALUES } = require("../utils/mediaType.util");
+const { enabledScanProviders, parseRequestedProviderIds } = require("../config/scanProviders");
 
 function parsePagination(query) {
   const page = Number.parseInt(query.page, 10);
@@ -50,13 +55,41 @@ function parseScanUrl(body) {
   return { ok: true, url: parsed.toString() };
 }
 
+function normalizeProviderStatuses(scan) {
+  const selected = Array.isArray(scan && scan.selected_providers)
+    ? scan.selected_providers.map((v) => String(v || "").trim().toLowerCase()).filter(Boolean)
+    : [];
+  const byId =
+    scan && scan.provider_statuses && typeof scan.provider_statuses === "object"
+      ? scan.provider_statuses
+      : {};
+  return selected.map((id) => {
+    const raw = String(byId[id] || "").trim().toLowerCase();
+    const status =
+      raw === "processing" || raw === "completed" || raw === "failed" || raw === "queued"
+        ? raw
+        : "queued";
+    const config = providerById(id);
+    return {
+      id,
+      name: config && config.name ? config.name : id,
+      status
+    };
+  });
+}
+
 async function submitScanUpload(req, res, next) {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "file is required" });
     }
 
-    const scan = await createScanFromUpload({ userId: req.user.id, file: req.file });
+    const requestedProviderIds = parseRequestedProviderIds(req.body && req.body.providers);
+    const scan = await createScanFromUpload({
+      userId: req.user.id,
+      file: req.file,
+      requestedProviderIds
+    });
     const statusCode = scan.status === "pending" ? 202 : 200;
     return res.status(statusCode).json(scan);
   } catch (error) {
@@ -71,9 +104,22 @@ async function submitScanUrl(req, res, next) {
       return res.status(400).json({ error: parsed.error });
     }
 
-    const scan = await createScanFromUrl({ userId: req.user.id, url: parsed.url });
+    const requestedProviderIds = parseRequestedProviderIds(req.body && req.body.providers);
+    const scan = await createScanFromUrl({
+      userId: req.user.id,
+      url: parsed.url,
+      requestedProviderIds
+    });
     const statusCode = scan.status === "pending" ? 202 : 200;
     return res.status(statusCode).json(scan);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function listScanProviders(_req, res, next) {
+  try {
+    return res.json({ data: enabledScanProviders() });
   } catch (error) {
     return next(error);
   }
@@ -92,11 +138,73 @@ async function getScanResult(req, res, next) {
       artifact_aggregation_available,
       artifact_model_metadata_available
     } = formatScanRowForClient(scan);
+    const groupId = scan.scan_group_id || scan.id;
+    const attempts = await getScanAttemptsByGroup({ userId: req.user.id, scanGroupId: groupId });
     return res.json({
       ...row,
+      scan_group_id: scan.scan_group_id || scan.id,
+      retry_of_scan_id: scan.retry_of_scan_id || null,
+      attempt_number: Number(scan.attempt_number || 1),
+      retry_count: Number(scan.retry_count || 0),
+      last_error: scan.last_error || null,
+      error_payload: scan.error_payload || null,
+      provider_execution: normalizeProviderStatuses(scan),
+      attempts: attempts.map((a) => ({
+        id: a.id,
+        status: a.status,
+        attempt_number: Number(a.attempt_number || 1),
+        created_at: a.created_at,
+        completed_at: a.completed_at || null,
+        retry_of_scan_id: a.retry_of_scan_id || null
+      })),
       ...(heatmaps_expired ? { heatmaps_expired: true } : {}),
       ...(artifact_aggregation_available ? { artifact_aggregation_available: true } : {}),
       ...(artifact_model_metadata_available ? { artifact_model_metadata_available: true } : {})
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function retryScan(req, res, next) {
+  try {
+    const existing = await getScanById({ scanId: req.params.id, userId: req.user.id });
+    if (!existing) {
+      return res.status(404).json({ error: "Scan not found" });
+    }
+    const policy = canRetry(req.user, existing);
+    if (!policy.ok) {
+      return res.status(409).json({ error: policy.reason || "Scan cannot be retried" });
+    }
+
+    const retryProviders = Array.isArray(req.body && req.body.retryProviders)
+      ? req.body.retryProviders.map((v) => String(v || "").trim().toLowerCase()).filter(Boolean)
+      : undefined;
+    const retried = await retryFailedScanForUser({
+      scanId: req.params.id,
+      userId: req.user.id,
+      retryProviders
+    });
+    if (!retried.ok) {
+      if (retried.reason === "not_found") {
+        return res.status(404).json({ error: retried.message || "Scan not found" });
+      }
+      if (retried.reason === "not_retryable" || retried.reason === "no_media") {
+        return res.status(409).json({ error: retried.message || "Scan cannot be retried" });
+      }
+      return res.status(400).json({ error: retried.message || "Scan retry failed" });
+    }
+
+    return res.status(202).json({
+      ok: true,
+      scan: {
+        id: retried.scan.id,
+        status: retried.scan.status,
+        retryOfScanId: retried.scan.retry_of_scan_id,
+        scanGroupId: retried.scan.scan_group_id,
+        attemptNumber: retried.scan.attempt_number,
+        retryCount: retried.scan.retry_count
+      }
     });
   } catch (error) {
     return next(error);
@@ -290,10 +398,12 @@ async function scanAnalyticsDetectionMix(req, res, next) {
 module.exports = {
   submitScanUpload,
   submitScanUrl,
+  listScanProviders,
   getScanResult,
   streamScanArtifact,
   streamScanHeatmap,
   streamScanMedia,
+  retryScan,
   scanHistory,
   scanAnalyticsActivity,
   scanAnalyticsDetectionMix

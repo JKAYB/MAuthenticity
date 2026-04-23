@@ -13,9 +13,42 @@ const LOG = "[scan-process]";
 async function markProcessing(pool, scanId) {
   await pool.query(
     `UPDATE scans
-     SET status = 'processing', error_message = NULL, updated_at = NOW()
+     SET status = 'processing',
+         error_message = NULL,
+         failed_providers = '[]'::jsonb,
+         error_payload = NULL,
+         provider_statuses = COALESCE(
+           (SELECT jsonb_object_agg(p, 'queued'::text)
+            FROM unnest(COALESCE(selected_providers, ARRAY[]::text[])) AS p),
+           '{}'::jsonb
+         ),
+         updated_at = NOW()
      WHERE id = $1`,
     [scanId]
+  );
+}
+
+async function markProviderStatus(pool, { scanId, providerId, status }) {
+  const pid = String(providerId || "")
+    .trim()
+    .toLowerCase();
+  const next = String(status || "")
+    .trim()
+    .toLowerCase();
+  if (!pid || !next) {
+    return;
+  }
+  await pool.query(
+    `UPDATE scans
+     SET provider_statuses = jsonb_set(
+       COALESCE(provider_statuses, '{}'::jsonb),
+       ARRAY[$2::text],
+       to_jsonb($3::text),
+       true
+     ),
+     updated_at = NOW()
+     WHERE id = $1`,
+    [scanId, pid, next]
   );
 }
 
@@ -31,6 +64,8 @@ async function markCompleted(pool, { scanId, confidence, isAiGenerated, summary,
          summary = $3,
          result_payload = $4,
          error_message = NULL,
+         failed_providers = '[]'::jsonb,
+         error_payload = NULL,
          status = 'completed',
          detection_provider = $6,
          updated_at = NOW(),
@@ -42,18 +77,25 @@ async function markCompleted(pool, { scanId, confidence, isAiGenerated, summary,
 
 /**
  * @param {import('pg').Pool} pool
- * @param {{ scanId: string; errorMessage: string }} args
+ * @param {{ scanId: string; errorMessage: string; failedProviders?: string[] | null; errorPayload?: unknown }} args
  */
-async function markFailed(pool, { scanId, errorMessage }) {
+async function markFailed(pool, { scanId, errorMessage, failedProviders, errorPayload }) {
+  const failed = Array.isArray(failedProviders)
+    ? failedProviders
+        .map((v) => String(v || "").trim().toLowerCase())
+        .filter(Boolean)
+    : [];
   await pool.query(
     `UPDATE scans
      SET status = 'failed',
          error_message = $1,
+         failed_providers = $2::jsonb,
+         error_payload = $3::jsonb,
          summary = NULL,
          updated_at = NOW(),
          completed_at = NOW()
-     WHERE id = $2`,
-    [errorMessage, scanId]
+     WHERE id = $4`,
+    [errorMessage, JSON.stringify(failed), JSON.stringify(errorPayload || null), scanId]
   );
 }
 
@@ -97,21 +139,31 @@ async function processScanById({ pool, scanId, userId, logPrefix = LOG }) {
       scanId,
       userId: effectiveUserId != null ? String(effectiveUserId) : null,
       storageProvider
+    }, {
+      onProviderStatus: async ({ providerId, status }) => {
+        await markProviderStatus(pool, { scanId, providerId, status });
+      },
+      providerIds: Array.isArray(row.selected_providers)
+        ? row.selected_providers
+            .map((id) => String(id || "").trim().toLowerCase())
+            .filter(Boolean)
+        : undefined
     });
 
+    const primary = detection.primaryDetection;
     await markCompleted(pool, {
       scanId,
-      confidence: detection.confidence,
-      isAiGenerated: detection.isAiGenerated,
-      summary: detection.summary,
+      confidence: primary.confidence,
+      isAiGenerated: primary.isAiGenerated,
+      summary: primary.summary,
       resultPayload: detection.resultPayload,
-      detectionProvider: detection.providerId
+      detectionProvider: primary.providerId
     });
 
     console.info(
-      `${logPrefix} completed scan=${scanId} provider=${detection.providerId} confidence=${detection.confidence} ai=${detection.isAiGenerated}`
+      `${logPrefix} completed scan=${scanId} providers=${detection.detections.map((d) => d.providerId).join(",")} primary=${primary.providerId} confidence=${primary.confidence} ai=${primary.isAiGenerated}`
     );
-    return { ok: true, scanId, confidence: detection.confidence };
+    return { ok: true, scanId, confidence: primary.confidence };
   } finally {
     if (resolved) {
       await resolved.release();
@@ -122,6 +174,7 @@ async function processScanById({ pool, scanId, userId, logPrefix = LOG }) {
 module.exports = {
   processScanById,
   markProcessing,
+  markProviderStatus,
   markCompleted,
   markFailed,
   LOG

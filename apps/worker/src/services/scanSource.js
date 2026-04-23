@@ -22,7 +22,7 @@ const { materializeDownloadStreamToTempFile, safeUnlink } = require("../storage/
 async function loadScanRow(pool, scanId) {
   const { rows } = await pool.query(
     `SELECT id, user_id, status, filename, mime_type, file_size_bytes,
-            source_type, source_url, storage_key, storage_provider
+            source_type, source_url, storage_key, storage_provider, selected_providers
      FROM scans WHERE id = $1`,
     [scanId]
   );

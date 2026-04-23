@@ -43,11 +43,17 @@ async function processScanJob(job) {
 async function handleProcessorError(job, error) {
   const { scanId } = job.data || {};
   const message = error && error.message ? error.message : "Unexpected worker error";
+  const failedProviders = Array.isArray(error && error.failedProviders)
+    ? error.failedProviders
+    : [];
+  const errorPayload = Array.isArray(error && error.failedProviderPayload)
+    ? error.failedProviderPayload
+    : null;
   const max = maxAttemptsFor(job);
 
   if (error instanceof UnrecoverableError || error.name === "UnrecoverableError") {
     if (scanId) {
-      await markFailed(pool, { scanId, errorMessage: message });
+      await markFailed(pool, { scanId, errorMessage: message, failedProviders, errorPayload });
     }
     const code = error && error.code ? String(error.code) : "";
     console.error(
@@ -67,7 +73,7 @@ async function handleProcessorError(job, error) {
   }
 
   if (scanId) {
-    await markFailed(pool, { scanId, errorMessage: message });
+    await markFailed(pool, { scanId, errorMessage: message, failedProviders, errorPayload });
   }
   const code = error && error.code ? String(error.code) : "";
   console.error(

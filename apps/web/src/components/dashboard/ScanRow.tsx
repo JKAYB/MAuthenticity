@@ -31,7 +31,9 @@ export function ScanRow({ scan, index = 0 }: { scan: Scan; index?: number }) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">{scan.title}</div>
+              <div className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">
+                {scan.title}
+              </div>
               <div className="flex shrink-0 items-center gap-1.5 sm:hidden">
                 <StatusBadge status={scan.status} iconOnly />
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-70" />
@@ -41,6 +43,16 @@ export function ScanRow({ scan, index = 0 }: { scan: Scan; index?: number }) {
               <span className="min-w-0 truncate font-mono">Scanned</span>
               {/* <span className="shrink-0">·</span> */}
               <span className="shrink-0">{timeAgo(scan.createdAt)}</span>
+              {typeof scan.retryCount === "number" && scan.retryCount > 0 ? (
+                <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary ring-1 ring-primary/30">
+                  Retried
+                </span>
+              ) : null}
+              {typeof scan.attemptNumber === "number" && scan.attemptNumber > 1 ? (
+                <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning ring-1 ring-warning/30">
+                  Attempt {scan.attemptNumber}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>

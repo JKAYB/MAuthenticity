@@ -145,6 +145,24 @@ export type ApiScanRow = {
   artifact_aggregation_available?: boolean;
   /** Model metadata JSON exists; fetch via GET `/scan/:id/artifacts/model-metadata`. */
   artifact_model_metadata_available?: boolean;
+  scan_group_id?: string | null;
+  retry_of_scan_id?: string | null;
+  attempt_number?: number;
+  retry_count?: number;
+  last_error?: string | null;
+  provider_execution?: Array<{
+    id: string;
+    name: string;
+    status: "queued" | "processing" | "completed" | "failed";
+  }>;
+  attempts?: Array<{
+    id: string;
+    status: string;
+    attempt_number?: number;
+    created_at?: string;
+    completed_at?: string | null;
+    retry_of_scan_id?: string | null;
+  }>;
   created_at: string;
   completed_at?: string | null;
   updated_at?: string | null;
@@ -158,8 +176,26 @@ export type ScanHistoryResponse = {
   data: ApiScanRow[];
 };
 
+export type ScanProvider = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  supports?: Partial<Record<"image" | "video" | "audio" | "document" | "other" | "url", boolean>>;
+  access?: Partial<Record<"free" | "individual" | "organization", boolean>>;
+  sortOrder?: number;
+};
+
+export async function getScanProviders(): Promise<ScanProvider[]> {
+  const res = await apiJson<{ data?: ScanProvider[] }>("/scan/providers");
+  return Array.isArray(res.data) ? res.data : [];
+}
+
 export async function getScanHistory(
-  params: { page?: number; limit?: number; mediaType?: "image" | "video" | "audio" | "document" | "other" } = {},
+  params: {
+    page?: number;
+    limit?: number;
+    mediaType?: "image" | "video" | "audio" | "document" | "other";
+  } = {},
 ): Promise<ScanHistoryResponse> {
   const q = new URLSearchParams();
   if (params.page) q.set("page", String(params.page));
@@ -171,6 +207,20 @@ export async function getScanHistory(
 
 export async function getScanById(id: string): Promise<ApiScanRow> {
   return apiJson<ApiScanRow>(`/scan/${id}`);
+}
+
+export async function retryScanById(id: string): Promise<{
+  ok: boolean;
+  scan: {
+    id: string;
+    status: string;
+    retryOfScanId: string;
+    scanGroupId: string;
+    attemptNumber: number;
+    retryCount: number;
+  };
+}> {
+  return apiJson(`/scan/${encodeURIComponent(id)}/retry`, { method: "POST" });
 }
 
 /** Matches `GET /scan/analytics/activity` query `range`. */
@@ -226,14 +276,22 @@ export async function getScanAnalyticsDetectionMix(
   range: ScanAnalyticsRange = "14d",
 ): Promise<ScanAnalyticsDetectionMixResponse> {
   const q = new URLSearchParams({ range });
-  return apiJson<ScanAnalyticsDetectionMixResponse>(`/scan/analytics/detection-mix?${q.toString()}`);
+  return apiJson<ScanAnalyticsDetectionMixResponse>(
+    `/scan/analytics/detection-mix?${q.toString()}`,
+  );
 }
 
 const SCAN_UPLOAD_MS = 120_000;
 
-export async function submitScanFile(file: File): Promise<{ id: string; status: string }> {
+export async function submitScanFile(
+  file: File,
+  providers: string[] = [],
+): Promise<{ id: string; status: string }> {
   const formData = new FormData();
   formData.append("file", file);
+  if (providers.length > 0) {
+    formData.append("providers", JSON.stringify(providers));
+  }
   const controller = new AbortController();
   const t = window.setTimeout(() => controller.abort(), SCAN_UPLOAD_MS);
   try {
@@ -242,10 +300,16 @@ export async function submitScanFile(file: File): Promise<{ id: string; status: 
       body: formData,
       signal: controller.signal,
     });
-    const data = (await parseJson(res)) as { id?: string; status?: string; error?: string };
+    const data = (await parseJson(res)) as {
+      id?: string;
+      status?: string;
+      error?: string;
+      scan?: { id?: string; status?: string };
+    };
     if (!res.ok) throw new Error(data.error || "Scan upload failed");
-    if (!data.id) throw new Error("Invalid scan response");
-    return { id: data.id, status: data.status || "pending" };
+    const scanId = data.scan?.id || data.id;
+    if (!scanId) throw new Error("Invalid scan response");
+    return { id: scanId, status: data.scan?.status || data.status || "pending" };
   } finally {
     window.clearTimeout(t);
   }
@@ -253,20 +317,29 @@ export async function submitScanFile(file: File): Promise<{ id: string; status: 
 
 const SCAN_URL_MS = 60_000;
 
-export async function submitScanUrl(url: string): Promise<{ id: string; status: string }> {
+export async function submitScanUrl(
+  url: string,
+  providers: string[] = [],
+): Promise<{ id: string; status: string }> {
   const controller = new AbortController();
   const t = window.setTimeout(() => controller.abort(), SCAN_URL_MS);
   try {
     const res = await apiFetch("/scan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: url.trim() }),
+      body: JSON.stringify({ url: url.trim(), providers }),
       signal: controller.signal,
     });
-    const data = (await parseJson(res)) as { id?: string; status?: string; error?: string };
+    const data = (await parseJson(res)) as {
+      id?: string;
+      status?: string;
+      error?: string;
+      scan?: { id?: string; status?: string };
+    };
     if (!res.ok) throw new Error(data.error || "Scan request failed");
-    if (!data.id) throw new Error("Invalid scan response");
-    return { id: data.id, status: data.status || "pending" };
+    const scanId = data.scan?.id || data.id;
+    if (!scanId) throw new Error("Invalid scan response");
+    return { id: scanId, status: data.scan?.status || data.status || "pending" };
   } finally {
     window.clearTimeout(t);
   }

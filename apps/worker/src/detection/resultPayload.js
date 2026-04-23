@@ -1,15 +1,20 @@
 const { PAYLOAD_VERSION } = require("./contract");
 
 /**
- * @param {import('./contract').ProviderResult} detection
+ * @param {import('./contract').ProviderResult[]} detections
  */
-function buildResultPayload(detection) {
+function buildResultPayload(detections) {
+  const list = Array.isArray(detections) ? detections : [];
+  const primary = list[0];
+  const processors = {};
+  for (const detection of list) {
+    if (!detection || !detection.providerId) continue;
+    processors[detection.providerId] = detection.details || {};
+  }
   return {
     version: PAYLOAD_VERSION,
-    primaryProvider: detection.providerId,
-    processors: {
-      [detection.providerId]: detection.details
-    }
+    primaryProvider: primary ? primary.providerId : null,
+    processors
   };
 }
 
