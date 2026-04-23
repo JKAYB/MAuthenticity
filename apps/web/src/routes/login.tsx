@@ -116,7 +116,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
   };
 
   return (
-    <div className="relative min-h-screen lg:grid lg:grid-cols-2">
+    <div className="relative min-h-screen overflow-hidden lg:grid lg:grid-cols-2">
       <div
         className={
           fluidMode === "lite"
