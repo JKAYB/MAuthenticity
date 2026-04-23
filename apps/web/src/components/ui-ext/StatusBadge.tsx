@@ -1,13 +1,14 @@
 import { cn } from "@/lib/utils";
 import type { ScanStatus } from "@/lib/mock-data";
 import { statusMeta } from "@/lib/mock-data";
-import { CheckCircle2, AlertTriangle, ShieldAlert, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertTriangle, ShieldAlert, Loader2, XCircle } from "lucide-react";
 
 const styles: Record<ScanStatus, string> = {
   safe: "bg-success/12 text-success ring-success/30",
   flagged: "bg-destructive/15 text-destructive ring-destructive/30",
   suspicious: "bg-warning/12 text-warning ring-warning/30",
   pending: "bg-primary/15 text-primary ring-primary/30",
+  failed: "bg-destructive/12 text-destructive ring-destructive/35",
 };
 
 const icons: Record<ScanStatus, React.ComponentType<{ className?: string }>> = {
@@ -15,6 +16,7 @@ const icons: Record<ScanStatus, React.ComponentType<{ className?: string }>> = {
   flagged: ShieldAlert,
   suspicious: AlertTriangle,
   pending: Loader2,
+  failed: XCircle,
 };
 
 export function StatusBadge({

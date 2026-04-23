@@ -5,6 +5,7 @@ import {
   getScanAnalyticsActivity,
   getScanAnalyticsDetectionMix,
   type ScanAnalyticsRange,
+  type ScanHistoryResultFilter,
 } from "@/lib/api";
 import { apiScanToUiScan } from "@/lib/scan-adapter";
 import type { NormalizedMediaType, Scan } from "@/lib/mock-data";
@@ -17,13 +18,15 @@ export function useScanHistoryQuery(options: {
   page: number;
   limit: number;
   mediaType?: NormalizedMediaType;
+  result?: ScanHistoryResultFilter;
+  q?: string;
   enabled?: boolean;
 }) {
-  const { page, limit, mediaType, enabled = true } = options;
+  const { page, limit, mediaType, result, q, enabled = true } = options;
   return useQuery({
-    queryKey: scanKeys.history(page, limit, mediaType),
+    queryKey: scanKeys.history(page, limit, mediaType, result, q),
     queryFn: async (): Promise<Scan[]> => {
-      const res = await getScanHistory({ page, limit, mediaType });
+      const res = await getScanHistory({ page, limit, mediaType, result, q });
       return (res.data || []).map(apiScanToUiScan);
     },
     enabled,

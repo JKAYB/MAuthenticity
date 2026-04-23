@@ -3,9 +3,12 @@ const { v4: uuidv4 } = require("uuid");
 const {
   getScanObjectStorage,
   getStorageForProvider,
-  describeObjectStorageReadiness
+  describeObjectStorageReadiness,
 } = require("@media-auth/scan-storage");
-const { processScanById, markFailed } = require("@media-auth/worker/process-scan");
+const {
+  processScanById,
+  markFailed,
+} = require("@media-auth/worker/process-scan");
 const { pool } = require("../db/pool");
 const { getScanExecutionMode } = require("../config/scanExecution");
 const { parseBytesRange } = require("../utils/scanMediaRange.util");
@@ -15,7 +18,7 @@ const { resolveProviderIdsForScan } = require("../config/scanProviders");
 const {
   resolveArtifactAggregationStorageKey,
   resolveArtifactModelMetadataStorageKey,
-  assertArtifactKeyScopedToScan
+  assertArtifactKeyScopedToScan,
 } = require("./scanDetailArtifact.service");
 
 const SCAN_SELECT_FIELDS = `id, user_id, filename, mime_type, file_size_bytes, status, confidence, is_ai_generated,
@@ -25,7 +28,10 @@ const SCAN_SELECT_FIELDS = `id, user_id, filename, mime_type, file_size_bytes, s
 
 /** Max bytes allowed for scan media preview (full or ranged). */
 const MAX_MEDIA_PREVIEW_BYTES = 25 * 1024 * 1024;
-const MEDIA_TYPE_SQL_FOR_SCAN_ALIAS = MEDIA_TYPE_SQL.replace(/\bmime_type\b/g, "s.mime_type");
+const MEDIA_TYPE_SQL_FOR_SCAN_ALIAS = MEDIA_TYPE_SQL.replace(
+  /\bmime_type\b/g,
+  "s.mime_type",
+);
 
 const queuePayload = (scanId, userId) => ({ scanId, userId });
 
@@ -33,8 +39,8 @@ const defaultJobOpts = {
   attempts: 3,
   backoff: {
     type: "exponential",
-    delay: 1000
-  }
+    delay: 1000,
+  },
 };
 
 let loggedExecutionMode = false;
@@ -43,7 +49,11 @@ const URL_RETRY_HEAD_TIMEOUT_MS = 5000;
 function toQueuedProviderExecution(providerIds) {
   const ids = Array.isArray(providerIds) ? providerIds : [];
   return ids
-    .map((id) => String(id || "").trim().toLowerCase())
+    .map((id) =>
+      String(id || "")
+        .trim()
+        .toLowerCase(),
+    )
     .filter(Boolean)
     .map((id) => ({ id, status: "queued" }));
 }
@@ -55,14 +65,16 @@ function logExecutionModeOnce() {
   loggedExecutionMode = true;
   const mode = getScanExecutionMode();
   console.info(
-    `[scan-api] SCAN_EXECUTION_MODE=${mode} (${mode === "direct" ? "inline in API" : "BullMQ scan-jobs + worker"})`
+    `[scan-api] SCAN_EXECUTION_MODE=${mode} (${mode === "direct" ? "inline in API" : "BullMQ scan-jobs + worker"})`,
   );
 }
 
 function assertObjectStorageReadyForDirect() {
   const os = describeObjectStorageReadiness();
   if (!os.ok) {
-    throw new Error(`Object storage not configured for direct scan mode: ${os.issues.join("; ")}`);
+    throw new Error(
+      `Object storage not configured for direct scan mode: ${os.issues.join("; ")}`,
+    );
   }
 }
 
@@ -81,7 +93,7 @@ async function canReachSourceUrl(sourceUrl) {
     const res = await fetch(sourceUrl, {
       method: "HEAD",
       signal: ac.signal,
-      redirect: "follow"
+      redirect: "follow",
     });
     return res.ok;
   } catch {
@@ -101,27 +113,43 @@ async function dispatchScanAfterInsert({ scanId, userId }) {
 
   if (mode === "direct") {
     assertObjectStorageReadyForDirect();
-    console.info(`[scan-api] direct processing queued scan=${scanId} user=${userId}`);
+    console.info(
+      `[scan-api] direct processing queued scan=${scanId} user=${userId}`,
+    );
     setImmediate(async () => {
       try {
         await processScanById({
           pool,
           scanId,
           userId,
-          logPrefix: "[scan-api-direct]"
+          logPrefix: "[scan-api-direct]",
         });
         console.info(`[scan-api] direct processing completed scan=${scanId}`);
       } catch (err) {
         const msg = err && err.message ? err.message : "Scan processing failed";
-        const failedProviders = Array.isArray(err && err.failedProviders) ? err.failedProviders : [];
-        const errorPayload = Array.isArray(err && err.failedProviderPayload) ? err.failedProviderPayload : null;
+        const failedProviders = Array.isArray(err && err.failedProviders)
+          ? err.failedProviders
+          : [];
+        const errorPayload = Array.isArray(err && err.failedProviderPayload)
+          ? err.failedProviderPayload
+          : null;
         try {
-          await markFailed(pool, { scanId, errorMessage: msg, failedProviders, errorPayload });
+          await markFailed(pool, {
+            scanId,
+            errorMessage: msg,
+            failedProviders,
+            errorPayload,
+          });
         } catch (markErr) {
-          const markMsg = markErr && markErr.message ? markErr.message : "unknown";
-          console.error(`[scan-api] markFailed errored scan=${scanId}: ${markMsg}`);
+          const markMsg =
+            markErr && markErr.message ? markErr.message : "unknown";
+          console.error(
+            `[scan-api] markFailed errored scan=${scanId}: ${markMsg}`,
+          );
         }
-        console.error(`[scan-api] direct processing failed scan=${scanId}: ${msg}`);
+        console.error(
+          `[scan-api] direct processing failed scan=${scanId}: ${msg}`,
+        );
       }
     });
     return;
@@ -130,9 +158,11 @@ async function dispatchScanAfterInsert({ scanId, userId }) {
   const { scanQueue } = require("../queues/scan.queue");
   await scanQueue.add("scan-media", queuePayload(scanId, userId), {
     jobId: scanId,
-    ...defaultJobOpts
+    ...defaultJobOpts,
   });
-  console.info(`[scan-api] queue job added scan=${scanId} user=${userId} queue=scan-jobs`);
+  console.info(
+    `[scan-api] queue job added scan=${scanId} user=${userId} queue=scan-jobs`,
+  );
 }
 
 async function createScanFromUpload({ userId, file, requestedProviderIds }) {
@@ -148,13 +178,13 @@ async function createScanFromUpload({ userId, file, requestedProviderIds }) {
     scanId,
     buffer,
     originalName: file.originalname,
-    contentType: file.mimetype
+    contentType: file.mimetype,
   });
 
   const providerResolution = resolveProviderIdsForScan({
     requestedIds: requestedProviderIds,
     mimeType: file.mimetype,
-    sourceType: "upload"
+    sourceType: "upload",
   });
   if (!providerResolution.ok) {
     const err = new Error(providerResolution.error);
@@ -175,11 +205,13 @@ async function createScanFromUpload({ userId, file, requestedProviderIds }) {
       file.size,
       saved.storageKey,
       saved.storageProvider,
-      providerResolution.providerIds
-    ]
+      providerResolution.providerIds,
+    ],
   );
 
-  console.info(`[scan-api] scan row created scan=${scanId} user=${userId} source=upload`);
+  console.info(
+    `[scan-api] scan row created scan=${scanId} user=${userId} source=upload`,
+  );
 
   await dispatchScanAfterInsert({ scanId, userId });
   return {
@@ -187,10 +219,12 @@ async function createScanFromUpload({ userId, file, requestedProviderIds }) {
     scan: {
       id: scanId,
       status: "pending",
-      providerExecution: toQueuedProviderExecution(providerResolution.providerIds)
+      providerExecution: toQueuedProviderExecution(
+        providerResolution.providerIds,
+      ),
     },
     id: scanId,
-    status: "pending"
+    status: "pending",
   };
 }
 
@@ -211,7 +245,7 @@ async function createScanFromUrl({ userId, url, requestedProviderIds }) {
   const providerResolution = resolveProviderIdsForScan({
     requestedIds: requestedProviderIds,
     mimeType: "application/octet-stream",
-    sourceType: "url"
+    sourceType: "url",
   });
   if (!providerResolution.ok) {
     const err = new Error(providerResolution.error);
@@ -224,10 +258,12 @@ async function createScanFromUrl({ userId, url, requestedProviderIds }) {
                         source_type, storage_key, storage_provider, source_url, selected_providers,
                         scan_group_id, retry_of_scan_id, attempt_number, retry_count, last_error, is_retry, provider_statuses)
      VALUES ($1, $2, $3, 'application/octet-stream', 0, 'pending', 'url', NULL, NULL, $4, $5::text[], $1, NULL, 1, 0, NULL, FALSE, '{}'::jsonb)`,
-    [scanId, userId, filename, url, providerResolution.providerIds]
+    [scanId, userId, filename, url, providerResolution.providerIds],
   );
 
-  console.info(`[scan-api] scan row created scan=${scanId} user=${userId} source=url`);
+  console.info(
+    `[scan-api] scan row created scan=${scanId} user=${userId} source=url`,
+  );
 
   await dispatchScanAfterInsert({ scanId, userId });
   return {
@@ -235,10 +271,12 @@ async function createScanFromUrl({ userId, url, requestedProviderIds }) {
     scan: {
       id: scanId,
       status: "pending",
-      providerExecution: toQueuedProviderExecution(providerResolution.providerIds)
+      providerExecution: toQueuedProviderExecution(
+        providerResolution.providerIds,
+      ),
     },
     id: scanId,
-    status: "pending"
+    status: "pending",
   };
 }
 
@@ -247,7 +285,7 @@ async function getScanById({ scanId, userId }) {
     `SELECT ${SCAN_SELECT_FIELDS}
      FROM scans
      WHERE id = $1 AND user_id = $2`,
-    [scanId, userId]
+    [scanId, userId],
   );
 
   return rows[0] || null;
@@ -259,7 +297,7 @@ async function getScanAttemptsByGroup({ userId, scanGroupId }) {
      FROM scans
      WHERE user_id = $1 AND scan_group_id = $2
      ORDER BY attempt_number ASC, created_at ASC`,
-    [userId, scanGroupId]
+    [userId, scanGroupId],
   );
   return rows;
 }
@@ -270,11 +308,15 @@ async function retryFailedScanForUser({ scanId, userId, retryProviders }) {
     return { ok: false, reason: "not_found", message: "Scan not found" };
   }
   if (String(base.status || "").toLowerCase() !== "failed") {
-    return { ok: false, reason: "not_retryable", message: "Only failed scans can be retried" };
+    return {
+      ok: false,
+      reason: "not_retryable",
+      message: "Only failed scans can be retried",
+    };
   }
   if (Array.isArray(retryProviders) && retryProviders.length > 0) {
     console.info(
-      `[scan-api] retry provider override requested scan=${scanId} retry_providers=${retryProviders.join(",")} (not yet supported)`
+      `[scan-api] retry provider override requested scan=${scanId} retry_providers=${retryProviders.join(",")} (not yet supported)`,
     );
   }
 
@@ -282,76 +324,106 @@ async function retryFailedScanForUser({ scanId, userId, retryProviders }) {
   if (sourceType === "upload") {
     const key = base.storage_key ? String(base.storage_key).trim() : "";
     if (!key) {
-      console.info(`[scan-api] retry media check scan=${scanId} storage_key=(missing) exists=false`);
-      return { ok: false, reason: "no_media", message: "Stored media is missing for this scan" };
+      console.info(
+        `[scan-api] retry media check scan=${scanId} storage_key=(missing) exists=false`,
+      );
+      return {
+        ok: false,
+        reason: "no_media",
+        message: "Stored media is missing for this scan",
+      };
     }
     try {
-      const provider = base.storage_provider ? String(base.storage_provider).trim().toLowerCase() : "local";
+      const provider = base.storage_provider
+        ? String(base.storage_provider).trim().toLowerCase()
+        : "local";
       const storage = getStorageForProvider(provider);
       const exists = await storageObjectExists(storage, key);
-      console.info(`[scan-api] retry media check scan=${scanId} storage_key=${key} exists=${exists}`);
+      console.info(
+        `[scan-api] retry media check scan=${scanId} storage_key=${key} exists=${exists}`,
+      );
       if (!exists) {
         return {
           ok: false,
           reason: "no_media",
-          message: "Original file no longer available for retry"
+          message: "Original file no longer available for retry",
         };
       }
     } catch (error) {
       console.error(
         `[scan-api] retry media check scan=${scanId} storage_key=${key} exists=error message=${
           error && error.message ? String(error.message) : "unknown"
-        }`
+        }`,
       );
       return {
         ok: false,
         reason: "no_media",
-        message: "Original file no longer available for retry"
+        message: "Original file no longer available for retry",
       };
     }
   } else {
     const sourceUrl = base.source_url ? String(base.source_url).trim() : "";
     if (!sourceUrl) {
-      console.info(`[scan-api] retry media check scan=${scanId} source_url=(missing) reachable=false`);
-      return { ok: false, reason: "no_media", message: "Source URL is missing for this scan" };
+      console.info(
+        `[scan-api] retry media check scan=${scanId} source_url=(missing) reachable=false`,
+      );
+      return {
+        ok: false,
+        reason: "no_media",
+        message: "Source URL is missing for this scan",
+      };
     }
     const reachable = await canReachSourceUrl(sourceUrl);
-    console.info(`[scan-api] retry media check scan=${scanId} source_url=${sourceUrl} reachable=${reachable}`);
+    console.info(
+      `[scan-api] retry media check scan=${scanId} source_url=${sourceUrl} reachable=${reachable}`,
+    );
     if (!reachable) {
       return {
         ok: false,
         reason: "no_media",
-        message: "Original source URL is no longer accessible for retry"
+        message: "Original source URL is no longer accessible for retry",
       };
     }
   }
 
-  const groupId = base.scan_group_id ? String(base.scan_group_id) : String(base.id);
+  const groupId = base.scan_group_id
+    ? String(base.scan_group_id)
+    : String(base.id);
   const { rows: attemptRows } = await pool.query(
     `SELECT COALESCE(MAX(attempt_number), 1) AS max_attempt
      FROM scans
      WHERE user_id = $1 AND scan_group_id = $2`,
-    [userId, groupId]
+    [userId, groupId],
   );
-  const maxAttempt = Number(attemptRows[0] && attemptRows[0].max_attempt ? attemptRows[0].max_attempt : 1);
+  const maxAttempt = Number(
+    attemptRows[0] && attemptRows[0].max_attempt
+      ? attemptRows[0].max_attempt
+      : 1,
+  );
   const nextAttempt = Number.isFinite(maxAttempt) ? maxAttempt + 1 : 2;
-  const baseRetryCount = Number.isFinite(Number(base.retry_count)) ? Number(base.retry_count) : 0;
+  const baseRetryCount = Number.isFinite(Number(base.retry_count))
+    ? Number(base.retry_count)
+    : 0;
   const nextRetryCount = Math.max(0, baseRetryCount + 1);
 
   const newScanId = uuidv4();
   const selectedProviders = Array.isArray(base.selected_providers)
-    ? base.selected_providers.filter((id) => typeof id === "string" && id.trim())
+    ? base.selected_providers.filter(
+        (id) => typeof id === "string" && id.trim(),
+      )
     : [];
   if (selectedProviders.length === 0) {
-    console.info(`[scan-api] retry provider snapshot scan=${scanId} selected_providers=[] valid=false`);
+    console.info(
+      `[scan-api] retry provider snapshot scan=${scanId} selected_providers=[] valid=false`,
+    );
     return {
       ok: false,
       reason: "not_retryable",
-      message: "Original scan has no provider snapshot for retry"
+      message: "Original scan has no provider snapshot for retry",
     };
   }
   console.info(
-    `[scan-api] retry provider snapshot scan=${scanId} selected_providers=${selectedProviders.join(",")} valid=true`
+    `[scan-api] retry provider snapshot scan=${scanId} selected_providers=${selectedProviders.join(",")} valid=true`,
   );
 
   await pool.query(
@@ -380,8 +452,8 @@ async function retryFailedScanForUser({ scanId, userId, retryProviders }) {
       groupId,
       base.id,
       nextAttempt,
-      nextRetryCount
-    ]
+      nextRetryCount,
+    ],
   );
 
   await dispatchScanAfterInsert({ scanId: newScanId, userId });
@@ -393,8 +465,8 @@ async function retryFailedScanForUser({ scanId, userId, retryProviders }) {
       retry_of_scan_id: base.id,
       scan_group_id: groupId,
       attempt_number: nextAttempt,
-      retry_count: nextRetryCount
-    }
+      retry_count: nextRetryCount,
+    },
   };
 }
 
@@ -407,7 +479,9 @@ async function getScanMediaForUser({ scanId, userId, rangeHeader }) {
   if (!row) {
     return { ok: false, reason: "not_found" };
   }
-  const sourceType = row.source_type ? String(row.source_type).trim().toLowerCase() : "upload";
+  const sourceType = row.source_type
+    ? String(row.source_type).trim().toLowerCase()
+    : "upload";
   const storageKey = row.storage_key && String(row.storage_key).trim();
   if (sourceType !== "upload" || !storageKey) {
     return { ok: false, reason: "no_media" };
@@ -415,15 +489,24 @@ async function getScanMediaForUser({ scanId, userId, rangeHeader }) {
 
   const dbSizeRaw = row.file_size_bytes;
   const dbNum =
-    dbSizeRaw != null && Number.isFinite(Number(dbSizeRaw)) ? Math.trunc(Number(dbSizeRaw)) : null;
+    dbSizeRaw != null && Number.isFinite(Number(dbSizeRaw))
+      ? Math.trunc(Number(dbSizeRaw))
+      : null;
   if (dbNum != null && dbNum > MAX_MEDIA_PREVIEW_BYTES) {
     return { ok: false, reason: "too_large" };
   }
 
-  const provider = row.storage_provider ? String(row.storage_provider).trim().toLowerCase() : "local";
+  const provider = row.storage_provider
+    ? String(row.storage_provider).trim().toLowerCase()
+    : "local";
   const mimeType =
-    row.mime_type && String(row.mime_type).trim() ? String(row.mime_type).trim() : "application/octet-stream";
-  const filename = row.filename && String(row.filename).trim() ? String(row.filename).trim() : "upload";
+    row.mime_type && String(row.mime_type).trim()
+      ? String(row.mime_type).trim()
+      : "application/octet-stream";
+  const filename =
+    row.filename && String(row.filename).trim()
+      ? String(row.filename).trim()
+      : "upload";
 
   try {
     const storage = getStorageForProvider(provider);
@@ -432,7 +515,9 @@ async function getScanMediaForUser({ scanId, userId, rangeHeader }) {
       return { ok: false, reason: "no_media" };
     }
     const objectSize =
-      info.size != null && Number.isFinite(Number(info.size)) ? Math.trunc(Number(info.size)) : 0;
+      info.size != null && Number.isFinite(Number(info.size))
+        ? Math.trunc(Number(info.size))
+        : 0;
     if (objectSize > MAX_MEDIA_PREVIEW_BYTES) {
       return { ok: false, reason: "too_large" };
     }
@@ -442,7 +527,11 @@ async function getScanMediaForUser({ scanId, userId, rangeHeader }) {
       totalSize = dbNum;
     }
     if (!totalSize) {
-      return { ok: false, reason: "stream_error", message: "Could not determine media size" };
+      return {
+        ok: false,
+        reason: "stream_error",
+        message: "Could not determine media size",
+      };
     }
 
     const parsed = parseBytesRange(rangeHeader, totalSize);
@@ -474,7 +563,7 @@ async function getScanMediaForUser({ scanId, userId, rangeHeader }) {
       contentLength,
       rangeStart,
       rangeEnd,
-      isPartial: httpStatus === 206
+      isPartial: httpStatus === 206,
     };
   } catch (e) {
     const message = e && e.message ? String(e.message) : "Failed to read media";
@@ -496,7 +585,9 @@ async function getScanHeatmapAssetForUser({ scanId, userId, assetName }) {
     return { ok: false, reason: "not_found" };
   }
 
-  const provider = row.storage_provider ? String(row.storage_provider).trim().toLowerCase() : "local";
+  const provider = row.storage_provider
+    ? String(row.storage_provider).trim().toLowerCase()
+    : "local";
   const mimeType = ref.mimeType || "image/png";
 
   try {
@@ -506,9 +597,15 @@ async function getScanHeatmapAssetForUser({ scanId, userId, assetName }) {
       return { ok: false, reason: "no_media" };
     }
     const objectSize =
-      info.size != null && Number.isFinite(Number(info.size)) ? Math.trunc(Number(info.size)) : 0;
+      info.size != null && Number.isFinite(Number(info.size))
+        ? Math.trunc(Number(info.size))
+        : 0;
     if (!objectSize) {
-      return { ok: false, reason: "stream_error", message: "Could not determine heatmap size" };
+      return {
+        ok: false,
+        reason: "stream_error",
+        message: "Could not determine heatmap size",
+      };
     }
 
     const stream = await storage.getDownloadStream(ref.storageKey);
@@ -516,10 +613,11 @@ async function getScanHeatmapAssetForUser({ scanId, userId, assetName }) {
       ok: true,
       stream,
       mimeType,
-      contentLength: objectSize
+      contentLength: objectSize,
     };
   } catch (e) {
-    const message = e && e.message ? String(e.message) : "Failed to read heatmap";
+    const message =
+      e && e.message ? String(e.message) : "Failed to read heatmap";
     return { ok: false, reason: "stream_error", message };
   }
 }
@@ -549,13 +647,19 @@ async function getScanArtifactForUser({ scanId, userId, type }) {
       : resolveArtifactModelMetadataStorageKey(payload);
 
   const ownerId = row.user_id != null ? String(row.user_id) : "";
-  if (!storageKey || !assertArtifactKeyScopedToScan(storageKey, ownerId, scanId)) {
+  if (
+    !storageKey ||
+    !assertArtifactKeyScopedToScan(storageKey, ownerId, scanId)
+  ) {
     return { ok: false, reason: "not_found" };
   }
 
-  const provider = row.storage_provider ? String(row.storage_provider).trim().toLowerCase() : "local";
+  const provider = row.storage_provider
+    ? String(row.storage_provider).trim().toLowerCase()
+    : "local";
   const mimeType = "application/json";
-  const downloadName = t === "aggregation" ? "aggregation.json" : "model-metadata.json";
+  const downloadName =
+    t === "aggregation" ? "aggregation.json" : "model-metadata.json";
 
   try {
     const storage = getStorageForProvider(provider);
@@ -564,9 +668,15 @@ async function getScanArtifactForUser({ scanId, userId, type }) {
       return { ok: false, reason: "no_media" };
     }
     const objectSize =
-      info.size != null && Number.isFinite(Number(info.size)) ? Math.trunc(Number(info.size)) : 0;
+      info.size != null && Number.isFinite(Number(info.size))
+        ? Math.trunc(Number(info.size))
+        : 0;
     if (!objectSize) {
-      return { ok: false, reason: "stream_error", message: "Could not determine artifact size" };
+      return {
+        ok: false,
+        reason: "stream_error",
+        message: "Could not determine artifact size",
+      };
     }
 
     const stream = await storage.getDownloadStream(storageKey);
@@ -575,23 +685,64 @@ async function getScanArtifactForUser({ scanId, userId, type }) {
       stream,
       mimeType,
       contentLength: objectSize,
-      downloadName
+      downloadName,
     };
   } catch (e) {
-    const message = e && e.message ? String(e.message) : "Failed to read artifact";
+    const message =
+      e && e.message ? String(e.message) : "Failed to read artifact";
     return { ok: false, reason: "stream_error", message };
   }
 }
 
-async function getScanHistory({ userId, page, limit, mediaType }) {
+/**
+ * UI-aligned history filter (maps to DB `status` + `is_ai_generated`).
+ * `failed` and `suspicious` are disjoint: failed is status-only; suspicious requires completed + NULL AI flag.
+ * @param {"authentic"|"manipulated"|"suspicious"|"analyzing"|"failed"|undefined} result
+ */
+function appendHistoryResultFilter(where, result) {
+  if (!result || typeof result !== "string") return;
+  const r = String(result).trim().toLowerCase();
+  if (r === "authentic") {
+    where.push(`s.status = 'completed' AND s.is_ai_generated IS FALSE`);
+    return;
+  }
+  if (r === "manipulated") {
+    where.push(`s.status = 'completed' AND s.is_ai_generated IS TRUE`);
+    return;
+  }
+  // Failed before suspicious: disjoint predicates (failed = status only; suspicious = completed + NULL flag).
+  if (r === "failed") {
+    where.push(`s.status = 'failed'`);
+    return;
+  }
+  if (r === "suspicious") {
+    where.push(`s.status = 'completed' AND s.is_ai_generated IS NULL`);
+    return;
+  }
+  if (r === "analyzing") {
+    where.push(`s.status IN ('pending', 'processing')`);
+  }
+}
+
+async function getScanHistory({ userId, page, limit, mediaType, result, q }) {
   const offset = (page - 1) * limit;
   const where = ["s.user_id = $1"];
   /** @type {unknown[]} */
   const params = [userId];
+  let nextIdx = 2;
   if (mediaType) {
-    where.push(`(${MEDIA_TYPE_SQL_FOR_SCAN_ALIAS}) = $2`);
+    where.push(`(${MEDIA_TYPE_SQL_FOR_SCAN_ALIAS}) = $${nextIdx}`);
     params.push(mediaType);
+    nextIdx += 1;
   }
+  // Case-insensitive substring match; pair with `scans_filename_trgm_idx` (pg_trgm) for scale.
+  const search = typeof q === "string" ? q.trim() : "";
+  if (search) {
+    where.push(`s.filename ILIKE $${nextIdx}`);
+    params.push(`%${search}%`);
+    nextIdx += 1;
+  }
+  appendHistoryResultFilter(where, result);
   const whereSql = where.join(" AND ");
   const limitParam = params.length + 1;
   const offsetParam = params.length + 2;
@@ -609,7 +760,7 @@ async function getScanHistory({ userId, page, limit, mediaType }) {
        WHERE latest.rn = 1
        ORDER BY latest.created_at DESC
        LIMIT $${limitParam} OFFSET $${offsetParam}`,
-      [...params, limit, offset]
+      [...params, limit, offset],
     ),
     pool.query(
       `SELECT COUNT(*)::INT AS total
@@ -619,8 +770,8 @@ async function getScanHistory({ userId, page, limit, mediaType }) {
          WHERE ${whereSql}
          GROUP BY s.scan_group_id
        ) grouped`,
-      params
-    )
+      params,
+    ),
   ]);
 
   const total = countRows[0] ? countRows[0].total : 0;
@@ -629,7 +780,7 @@ async function getScanHistory({ userId, page, limit, mediaType }) {
     limit,
     total,
     totalPages: Math.ceil(total / limit),
-    data: dataRows
+    data: dataRows,
   };
 }
 
@@ -639,7 +790,7 @@ async function getBillableScanCountForUser({ userId }) {
      FROM scans
      WHERE user_id = $1
        AND is_retry = FALSE`,
-    [userId]
+    [userId],
   );
   // retries should not consume user quota
   return rows[0] ? Number(rows[0].total) : 0;
@@ -655,5 +806,5 @@ module.exports = {
   retryFailedScanForUser,
   getScanMediaForUser,
   getScanHeatmapAssetForUser,
-  getScanArtifactForUser
+  getScanArtifactForUser,
 };

@@ -4,7 +4,7 @@ import { formatProviderOutputs } from "@/lib/scan-providers";
 
 function mapApiStatus(row: ApiScanRow): ScanStatus {
   const s = row.status?.toLowerCase() || "";
-  if (s === "failed") return "suspicious";
+  if (s === "failed") return "failed";
   if (s === "pending" || s === "processing") return "pending";
   if (s === "completed") {
     if (row.is_ai_generated === true) return "flagged";

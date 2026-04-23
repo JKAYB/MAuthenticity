@@ -149,7 +149,7 @@ export function AppLayout() {
   const meQuery = useMe();
   const isAuthenticated = !liveDemo && meQuery.isSuccess;
   const logoTo = isAuthenticated ? "/dashboard" : "/";
-  const logoAriaLabel = isAuthenticated ? "Go to dashboard" : "MediaAuth home";
+  const logoAriaLabel = isAuthenticated ? "Go to dashboard" : "Observyx home";
   const logout = useLogout();
 
   const profile = useMemo(() => {
@@ -270,7 +270,7 @@ export function AppLayout() {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <div className="relative hidden flex-1 max-w-md md:block">
+            {/* <div className="relative hidden flex-1 max-w-md md:block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 placeholder="Search scans, reports, media…"
@@ -279,7 +279,7 @@ export function AppLayout() {
               <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline">
                 ⌘K
               </kbd>
-            </div>
+            </div> */}
             <div className="ml-auto flex items-center gap-2">
               <ThemeToggle />
               <NotificationBell />

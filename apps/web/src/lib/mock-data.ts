@@ -1,6 +1,6 @@
 import type { ProviderSection, ProviderTone } from "@/lib/scan-providers";
 
-export type ScanStatus = "safe" | "flagged" | "suspicious" | "pending";
+export type ScanStatus = "safe" | "flagged" | "suspicious" | "pending" | "failed";
 export type MediaKind = "image" | "video" | "audio" | "url";
 export type NormalizedMediaType = "image" | "video" | "audio" | "document" | "other";
 
@@ -18,7 +18,7 @@ export type ScanHeatmap = {
   modelName: string;
   /** Legacy vendor presigned URL (may expire). */
   url?: string;
-  /** Served from MediaAuth storage via authenticated GET `/scan/:id/heatmaps/:asset`. */
+  /** Served from Observyx storage via authenticated GET `/scan/:id/heatmaps/:asset`. */
   heatmapAsset?: string;
   mimeType?: string;
 };
@@ -32,7 +32,7 @@ export type Detection = {
 export interface Scan {
   id: string;
   title: string;
-  source: "upload" | "url";  
+  source: "upload" | "url";
   kind: MediaKind;
   status: ScanStatus;
   rawStatus?: string;
@@ -221,6 +221,20 @@ export const scans: Scan[] = [
       { time: "00:08", event: "Cloned voice signature detected" },
     ],
   },
+  {
+    id: "scn_failed_demo",
+    title: "corrupt_upload.tif",
+    source: "upload",
+    kind: "image",
+    mimeType: "image/tiff",
+    rawStatus: "failed",
+    status: "failed",
+    confidence: 0,
+    createdAt: ago(72),
+    detections: [],
+    metadata: [{ key: "Error", value: "Processing failed" }],
+    timeline: [{ time: "00:00", event: "Scan failed" }],
+  },
 ];
 
 export const metrics = [
@@ -248,6 +262,8 @@ export function statusMeta(status: ScanStatus) {
       return { label: "Suspicious", color: "warning" as const };
     case "pending":
       return { label: "Analyzing", color: "primary" as const };
+    case "failed":
+      return { label: "Failed", color: "destructive" as const };
   }
 }
 

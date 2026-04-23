@@ -533,6 +533,90 @@ d("API scan integration", () => {
     );
   });
 
+  it("scan history result=failed and result=suspicious are disjoint on status + is_ai_generated", async () => {
+    const email = `u-hist-filter-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const password = "TestUser1!";
+    const token = await signupLogin(baseUrl, email, password);
+    const userId = (await pool.query(`SELECT id FROM users WHERE email = $1`, [email])).rows[0].id;
+    createdUserIds.push(userId);
+
+    const fd1 = new FormData();
+    fd1.append("file", new Blob([MIN_PNG], { type: "image/png" }), "hist-suspicious.png");
+    const up1 = await fetchJson(`${baseUrl}/scan`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd1
+    });
+    assert.equal(up1.res.status, 202, JSON.stringify(up1.body));
+    const idSusp = up1.body.id;
+    createdScanIds.push(idSusp);
+
+    const fd2 = new FormData();
+    fd2.append("file", new Blob([MIN_PNG], { type: "image/png" }), "hist-failed.png");
+    const up2 = await fetchJson(`${baseUrl}/scan`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd2
+    });
+    assert.equal(up2.res.status, 202, JSON.stringify(up2.body));
+    const idFail = up2.body.id;
+    createdScanIds.push(idFail);
+
+    await pool.query(
+      `UPDATE scans SET status = 'completed', is_ai_generated = NULL, updated_at = NOW() WHERE id = $1`,
+      [idSusp]
+    );
+    await pool.query(
+      `UPDATE scans
+       SET status = 'failed',
+           is_ai_generated = NULL,
+           error_message = 'hist-filter synthetic',
+           last_error = 'hist-filter synthetic',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [idFail]
+    );
+
+    const failedHist = await fetchJson(`${baseUrl}/scan/history?result=failed&limit=50`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    assert.equal(failedHist.res.status, 200, JSON.stringify(failedHist.body));
+    const failedRows = failedHist.body.data || [];
+    assert.ok(
+      failedRows.some((row) => row.id === idFail),
+      "result=failed should include the failed scan"
+    );
+    assert.ok(
+      !failedRows.some((row) => row.id === idSusp),
+      "result=failed must not include completed inconclusive (null is_ai_generated) scan"
+    );
+    for (const row of failedRows) {
+      assert.equal(
+        String(row.status).toLowerCase(),
+        "failed",
+        `each history row for result=failed must have status failed, got ${row.status}`
+      );
+    }
+
+    const susHist = await fetchJson(`${baseUrl}/scan/history?result=suspicious&limit=50`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    assert.equal(susHist.res.status, 200, JSON.stringify(susHist.body));
+    const susRows = susHist.body.data || [];
+    assert.ok(
+      susRows.some((row) => row.id === idSusp),
+      "result=suspicious should include completed + is_ai_generated NULL scan"
+    );
+    assert.ok(
+      !susRows.some((row) => row.id === idFail),
+      "result=suspicious must not include failed scan even when is_ai_generated is NULL"
+    );
+    for (const row of susRows) {
+      assert.equal(String(row.status).toLowerCase(), "completed");
+      assert.equal(row.is_ai_generated, null);
+    }
+  });
+
   it("scan analytics endpoints require authentication", async () => {
     const act = await fetchJson(`${baseUrl}/scan/analytics/activity`);
     assert.equal(act.res.status, 401);

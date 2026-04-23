@@ -4,7 +4,7 @@ import { InternalScansPage } from "@/features/internal-ops/InternalScansPage";
 export const Route = createFileRoute("/internal/scans")({
   head: () => ({
     meta: [
-      { title: "Internal scan ops — MediaAuth" },
+      { title: "Internal scan ops — Observyx" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

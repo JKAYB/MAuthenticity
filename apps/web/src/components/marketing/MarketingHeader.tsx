@@ -20,7 +20,7 @@ export function MarketingHeader({ currentPage }: MarketingHeaderProps) {
       <div className="flex items-center justify-between gap-3">
         <Link
           to="/"
-          aria-label="MediaAuth home"
+          aria-label="Observyx home"
           className="mobile-tap-fix inline-flex w-fit shrink-0 touch-manipulation rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
         >
           <Logo />

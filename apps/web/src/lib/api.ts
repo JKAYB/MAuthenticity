@@ -190,17 +190,29 @@ export async function getScanProviders(): Promise<ScanProvider[]> {
   return Array.isArray(res.data) ? res.data : [];
 }
 
+/** Matches `GET /scan/history` query `result` (UI scan outcome filter). */
+export type ScanHistoryResultFilter =
+  | "authentic"
+  | "manipulated"
+  | "suspicious"
+  | "analyzing"
+  | "failed";
+
 export async function getScanHistory(
   params: {
     page?: number;
     limit?: number;
     mediaType?: "image" | "video" | "audio" | "document" | "other";
+    result?: ScanHistoryResultFilter;
+    q?: string;
   } = {},
 ): Promise<ScanHistoryResponse> {
   const q = new URLSearchParams();
   if (params.page) q.set("page", String(params.page));
   if (params.limit) q.set("limit", String(params.limit));
   if (params.mediaType) q.set("mediaType", params.mediaType);
+  if (params.result) q.set("result", params.result);
+  if (params.q && params.q.trim()) q.set("q", params.q.trim());
   const qs = q.toString();
   return apiJson<ScanHistoryResponse>(`/scan/history${qs ? `?${qs}` : ""}`);
 }

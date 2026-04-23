@@ -32,7 +32,7 @@ import { adaptScanProviders } from "@/features/scans/adapters/adaptScanProviders
 
 export const Route = createFileRoute("/_app/scans/$id")({
   head: () => ({
-    meta: [{ title: "Scan — MediaAuth" }],
+    meta: [{ title: "Scan — Observyx" }],
   }),
   notFoundComponent: () => (
     <div className="mx-auto max-w-md py-20 text-center">
@@ -288,7 +288,7 @@ function ScanDetail() {
           </div>
 
           <div className="flex items-center justify-center md:justify-end md:pl-4">
-          <ConfidenceRing value={scan.confidence} status={scan.status} />
+            <ConfidenceRing value={scan.confidence} status={scan.status} />
 
           </div>
 
@@ -369,13 +369,13 @@ function ScanDetail() {
         </div>
       </motion.div> */}
 
-<div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-xl elevated sm:p-5">
+      <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-xl elevated sm:p-5">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Provider Results
             </div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               Switching providers updates all provider-specific sections below.
             </div>
           </div>
@@ -661,7 +661,7 @@ function ScanDetail() {
           ) : activeProviderView?.sections.showHeatmaps && scan.heatmapsExpired ? (
             <p className="text-sm text-muted-foreground">
               Heatmap previews are no longer available (secure vendor links expired). New scans
-              store heatmaps in MediaAuth so previews keep working.
+              store heatmaps in Observyx so previews keep working.
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">Not available for this provider</p>
@@ -734,6 +734,63 @@ function ScanDetail() {
             Total retries:{" "}
             <span className="font-medium text-foreground">{scan.retryCount ?? 0}</span>
           </div>
+
+          {scan.attempts && scan.attempts.length > 0 ? (
+            <ol className="space-y-2">
+              {scan.attempts.map((attempt, idx, list) => {
+                const latest = idx === list.length - 1;
+                const attemptLabel = attempt.attemptNumber === 1 ? "Original" : "Retry";
+
+                return (
+                  <li
+                    key={attempt.id}
+                    className={cn(
+                      "rounded-md border px-3 py-2",
+                      latest
+                        ? "border-primary/40 bg-primary/10 ring-1 ring-primary/25"
+                        : "border-border bg-input/30",
+                    )}
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-sm font-medium">
+                            Attempt {attempt.attemptNumber}
+                          </div>
+
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground ring-1 ring-border/70">
+                            {attemptLabel}
+                          </span>
+
+                          {latest ? (
+                            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary ring-1 ring-primary/30">
+                              Latest
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-1 break-words text-xs text-muted-foreground">
+                          {attempt.createdAt ? timeAgo(attempt.createdAt) : "—"} · {attempt.status}
+                        </div>
+                      </div>
+
+                      <div className="self-start sm:shrink-0">
+                        <StatusBadge status={toUiStatus(attempt.status)} />
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : (
+            <p className="text-sm text-muted-foreground">No attempts available.</p>
+          )}
+        </Accordion>
+        {/* <Accordion title="Attempt history" icon={ListChecks}>
+          <div className="mb-2 text-xs text-muted-foreground">
+            Total retries:{" "}
+            <span className="font-medium text-foreground">{scan.retryCount ?? 0}</span>
+          </div>
           {scan.attempts && scan.attempts.length > 0 ? (
             <ol className="space-y-2">
               {scan.attempts.map((attempt, idx, list) => {
@@ -775,7 +832,7 @@ function ScanDetail() {
           ) : (
             <p className="text-sm text-muted-foreground">No attempts available.</p>
           )}
-        </Accordion>
+        </Accordion> */}
         <Accordion title="Raw output (JSON)" icon={FileText}>
           {activeProviderView?.sections.showRawOutput ? (
             <pre className="max-h-60 max-w-full overflow-x-auto overflow-y-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-[10px] leading-relaxed sm:max-h-72 sm:p-4 sm:text-xs">
@@ -793,7 +850,7 @@ function ScanDetail() {
 function toUiStatus(rawStatus: string) {
   const s = String(rawStatus || "").toLowerCase();
   if (s === "completed") return "safe";
-  if (s === "failed") return "suspicious";
+  if (s === "failed") return "failed";
   return "pending";
 }
 

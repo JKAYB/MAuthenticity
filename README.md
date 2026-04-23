@@ -1,6 +1,6 @@
 # media-auth-saas
 
-Monorepo for **MediaAuth**: an API + worker + web app for media authenticity scans. Users submit **file uploads** or **URLs**; a **BullMQ** worker runs a **detection provider** (`mock` or `real` HTTP) and persists results in **Postgres**.
+Monorepo for **Observyx**: an API + worker + web app for media authenticity scans. Users submit **file uploads** or **URLs**; a **BullMQ** worker runs a **detection provider** (`mock` or `real` HTTP) and persists results in **Postgres**.
 
 **Detailed operations, env tables, runbooks, and troubleshooting:** [`docs/OPERATIONS.md`](./docs/OPERATIONS.md)
 

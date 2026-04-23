@@ -16,11 +16,11 @@ import { enableLiveDemo } from "@/lib/demo-mode";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "MediaAuth — Trust, verified. AI media authenticity in seconds" },
+      { title: "Observyx — Trust, verified. AI media authenticity in seconds" },
       {
         name: "description",
         content:
-          "Detect deepfakes, manipulated images, cloned voices, and synthetic media with MediaAuth's AI authenticity engine.",
+          "Detect deepfakes, manipulated images, cloned voices, and synthetic media with Observyx's AI authenticity engine.",
       },
     ],
   }),
@@ -104,7 +104,7 @@ function Landing() {
           className="mx-auto inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs backdrop-blur"
         >
           <Sparkles className="h-3 w-3 text-primary" />
-          <span className="text-muted-foreground">v2 detection engine — now 38% faster</span>
+          <span className="text-muted-foreground">AI-powered multi-engine verification</span>
         </motion.div>
 
         <motion.h1
@@ -125,7 +125,7 @@ function Landing() {
           transition={{ duration: 0.48, delay: 0.1 }}
           className="mx-auto mt-5 max-w-xl text-base text-muted-foreground sm:text-lg"
         >
-          MediaAuth scans images, video, audio, and URLs for AI-generated content, face swaps, voice
+          Observyx scans images, video, audio, and URLs for AI-generated content, face swaps, voice
           clones, and tampering — in seconds.
         </motion.p>
 
@@ -206,13 +206,13 @@ function Landing() {
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 sm:flex-row">
           <Link
             to="/"
-            aria-label="MediaAuth home"
+            aria-label="Observyx home"
             className="mobile-tap-fix inline-flex w-fit touch-manipulation rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
           >
             <Logo compact />
           </Link>
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} MediaAuth. All rights reserved.
+            © {new Date().getFullYear()} Observyx. All rights reserved.
           </p>
         </div>
       </footer>

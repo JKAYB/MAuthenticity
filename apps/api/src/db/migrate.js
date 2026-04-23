@@ -118,6 +118,20 @@ async function runMigrations() {
   await pool.query(
     `ALTER TABLE scans ADD COLUMN IF NOT EXISTS storage_migrated_at TIMESTAMPTZ`
   );
+
+  try {
+    await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS scans_filename_trgm_idx
+      ON scans USING gin (filename gin_trgm_ops);
+    `);
+  } catch (e) {
+    const msg = e && e.message ? String(e.message) : String(e);
+    console.warn(
+      "[migrate] pg_trgm / scans_filename_trgm_idx skipped (extension or permissions):",
+      msg
+    );
+  }
 }
 runMigrations()
   .then(() => {

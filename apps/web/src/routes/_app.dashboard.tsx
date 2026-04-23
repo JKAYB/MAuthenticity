@@ -20,7 +20,7 @@ import { metrics as demoMetrics, scans as demoScans, user as demoUser } from "@/
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — MediaAuth" }] }),
+  head: () => ({ meta: [{ title: "Dashboard — Observyx" }] }),
   component: Dashboard,
 });
 

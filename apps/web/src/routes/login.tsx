@@ -15,6 +15,8 @@ import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { prefetchMe, useLogin, useSignup } from "@/features/auth/hooks";
 import LiquidEther from "./LiquidEtherWithRef";
+import BorderGlow from "@/components/BorderGlow";
+import { useTheme } from "@/hooks/use-theme";
 import { useFluidEtherLandingMode } from "@/hooks/use-fluid-ether-enabled";
 import {
   LANDING_FLUID_FULL_BASE,
@@ -37,8 +39,8 @@ export const Route = createFileRoute("/login")({
   },
   head: () => ({
     meta: [
-      { title: "Sign in — MediaAuth" },
-      { name: "description", content: "Sign in to your MediaAuth workspace." },
+      { title: "Sign in — Observyx" },
+      { name: "description", content: "Sign in to your Observyx workspace." },
     ],
   }),
   component: LoginPage,
@@ -73,6 +75,8 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
       colors: [...loginFluidColors],
     };
   }, [fluidMode]);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   useEffect(() => {
     if (fluidMode === "off") {
@@ -137,7 +141,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
         <div className="relative z-10 flex h-full flex-col p-10">
           <Link
             to="/"
-            aria-label="MediaAuth home"
+            aria-label="Observyx home"
             className="inline-flex w-fit touch-manipulation rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent] cursor-pointer"
           >
             <Logo />
@@ -166,7 +170,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
               className="mt-3 text-muted-foreground"
             >
               Run authenticity scans across images, video, audio, and URLs — powered by your
-              MediaAuth backend.
+              Observyx backend.
             </motion.p>
           </div>
         </div>
@@ -180,136 +184,153 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
           <div className="absolute left-6 top-6">
             <Link
               to="/"
-              aria-label="MediaAuth home"
+              aria-label="Observyx home"
               className="inline-flex w-fit touch-manipulation rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
             >
               <Logo />
             </Link>
           </div>
         </div>
+        <div className="auth-glow w-full max-w-sm">
 
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-sm rounded-2xl border border-border/70 bg-background/95 p-5 shadow-xl backdrop-blur-sm sm:p-6"
-        >
-          <div className="mb-7">
-            <h1 className="font-display text-3xl font-semibold tracking-tight">
-              {isLogin ? "Welcome back" : "Create your account"}
-            </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              {isLogin
-                ? "Sign in to continue to your workspace."
-                : "Start verifying media in under a minute."}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card/60 text-sm font-medium backdrop-blur transition hover:bg-card"
-              onClick={() => toast.message("OAuth is not wired to the API yet.")}
+          <BorderGlow
+            edgeSensitivity={30}
+            glowColor="40 80 80"
+            backgroundColor={isDark ? "#120F17" : "#f9fafc"}
+            borderRadius={28}
+            glowRadius={40}
+            glowIntensity={0.8}
+            coneSpread={25}
+            animated={true}
+            colors={isDark ? ['#c084fc', '#f472b6', '#38bdf8'] : ['#a78bfa', '#f9a8d4', '#7dd3fc']}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="w-full max-w-sm p-5 sm:p-6"
             >
-              <Github className="h-4 w-4" /> GitHub
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card/60 text-sm font-medium backdrop-blur transition hover:bg-card"
-              onClick={() => toast.message("OAuth is not wired to the API yet.")}
-            >
-              <Mail className="h-4 w-4" /> Google
-            </button>
-          </div>
+              <div className="mb-7">
+                <h1 className="font-display text-3xl font-semibold tracking-tight">
+                  {isLogin ? "Welcome back" : "Create your account"}
+                </h1>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  {isLogin
+                    ? "Sign in to continue to your workspace."
+                    : "Start verifying media in under a minute."}
+                </p>
+              </div>
 
-          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            or with email
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          <form className="space-y-4" onSubmit={onSubmit}>
-            {!isLogin && (
-              <Field label="Full name (optional)">
-                <input
-                  type="text"
-                  placeholder="Jane Reporter"
-                  className="auth-input"
-                  autoComplete="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </Field>
-            )}
-            <Field label="Email">
-              <input
-                required
-                type="email"
-                placeholder="you@company.com"
-                className="auth-input"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </Field>
-            <Field
-              label="Password"
-              hint={
-                isLogin ? null : (
-                  <span className="max-w-[14rem] text-right text-muted-foreground">
-                    8+ chars, upper, lower, number
-                  </span>
-                )
-              }
-            >
-              <div className="relative">
-                <input
-                  required
-                  minLength={isLogin ? undefined : 8}
-                  maxLength={isLogin ? undefined : 200}
-                  type={showPw ? "text" : "password"}
-                  placeholder=""
-                  className="auth-input pr-10"
-                  autoComplete={isLogin ? "current-password" : "new-password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowPw((s) => !s)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                  aria-label={showPw ? "Hide password" : "Show password"}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card/60 text-sm font-medium backdrop-blur transition hover:bg-card"
+                  onClick={() => toast.message("OAuth is not wired to the API yet.")}
                 >
-                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  <Github className="h-4 w-4" /> GitHub
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card/60 text-sm font-medium backdrop-blur transition hover:bg-card"
+                  onClick={() => toast.message("OAuth is not wired to the API yet.")}
+                >
+                  <Mail className="h-4 w-4" /> Google
                 </button>
               </div>
-            </Field>
 
-            <button
-              type="submit"
-              disabled={busy}
-              className="group relative mt-1 inline-flex h-10 w-full items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-gradient-to-br from-primary to-accent text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] transition active:scale-[0.99] disabled:opacity-60 cursor-pointer"
-            >
-              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-primary-foreground/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-              <ShieldCheck className="h-4 w-4" />
-              {busy ? "Please wait…" : isLogin ? "Sign in" : "Create account"}
-              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-            </button>
-          </form>
+              <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                or with email
+                <span className="h-px flex-1 bg-border" />
+              </div>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {isLogin ? "New to MediaAuth?" : "Already have an account?"}{" "}
-            <Link
-              to={isLogin ? "/signup" : "/login"}
-              className="font-medium text-foreground hover:text-primary"
-            >
-              {isLogin ? "Create an account" : "Sign in"}
-            </Link>
-          </p>
-        </motion.div>
+              <form className="space-y-4" onSubmit={onSubmit}>
+                {!isLogin && (
+                  <Field label="Full name (optional)">
+                    <input
+                      type="text"
+                      placeholder="Jane Reporter"
+                      className="auth-input"
+                      autoComplete="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                    />
+                  </Field>
+                )}
+                <Field label="Email">
+                  <input
+                    required
+                    type="email"
+                    placeholder="you@company.com"
+                    className="auth-input"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </Field>
+                <Field
+                  label="Password"
+                  hint={
+                    isLogin ? null : (
+                      <span className="max-w-[14rem] text-right text-muted-foreground">
+                        8+ chars, upper, lower, number
+                      </span>
+                    )
+                  }
+                >
+                  <div className="relative">
+                    <input
+                      required
+                      minLength={isLogin ? undefined : 8}
+                      maxLength={isLogin ? undefined : 200}
+                      type={showPw ? "text" : "password"}
+                      placeholder=""
+                      className="auth-input pr-10"
+                      autoComplete={isLogin ? "current-password" : "new-password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((s) => !s)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      aria-label={showPw ? "Hide password" : "Show password"}
+                    >
+                      {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </Field>
+
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="group relative mt-1 inline-flex h-10 w-full items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-gradient-to-br from-primary to-accent text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] transition active:scale-[0.99] disabled:opacity-60 cursor-pointer"
+                >
+                  <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-primary-foreground/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                  <ShieldCheck className="h-4 w-4" />
+                  {busy ? "Please wait…" : isLogin ? "Sign in" : "Create account"}
+                  <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                </button>
+              </form>
+
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                {isLogin ? "New to Observyx?" : "Already have an account?"}{" "}
+                <Link
+                  to={isLogin ? "/signup" : "/login"}
+                  className="font-medium text-foreground hover:text-primary"
+                >
+                  {isLogin ? "Create an account" : "Sign in"}
+                </Link>
+              </p>
+            </motion.div>
+          </BorderGlow>
+        </div>
       </div>
 
       <style>{`
+        .auth-glow .border-glow-inner {
+          overflow: hidden !important;
+        }
         .auth-input {
           width: 100%;
           height: 2.5rem;

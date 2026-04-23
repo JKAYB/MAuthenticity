@@ -7,7 +7,7 @@ import { scanKeys } from "@/features/scan/queryKeys";
 import type { ScanHeatmap } from "@/lib/mock-data";
 
 /**
- * Loads heatmap bytes with JWT when `heatmap.heatmapAsset` is set (MediaAuth-owned storage).
+ * Loads heatmap bytes with JWT when `heatmap.heatmapAsset` is set (Observyx-owned storage).
  * Legacy vendor URLs are passed through to {@link HeatMapCard} as plain `src`.
  */
 export function ResolvedHeatmapTile({ scanId, heatmap }: { scanId: string; heatmap: ScanHeatmap }) {

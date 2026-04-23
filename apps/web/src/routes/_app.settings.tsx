@@ -27,7 +27,7 @@ export const Route = createFileRoute("/_app/settings")({
     const tab = parseSettingsTab(raw.tab);
     return tab ? { tab } : {};
   },
-  head: () => ({ meta: [{ title: "Settings — MediaAuth" }] }),
+  head: () => ({ meta: [{ title: "Settings — Observyx" }] }),
   component: SettingsPage,
 });
 

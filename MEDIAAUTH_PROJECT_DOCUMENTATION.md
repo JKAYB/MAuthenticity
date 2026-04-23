@@ -1,6 +1,6 @@
-# MediaAuth — Internal Product & Engineering Documentation
+# Observyx — Internal Product & Engineering Documentation
 
-This document describes **MediaAuth** as implemented in this repository: architecture, scan lifecycle, strengths, risks, and planning context. It is written for builders, future contributors, technical reviewers, and roadmap discussions. Where behavior is inferred from code rather than product specs, that is called out.
+This document describes **Observyx** as implemented in this repository: architecture, scan lifecycle, strengths, risks, and planning context. It is written for builders, future contributors, technical reviewers, and roadmap discussions. Where behavior is inferred from code rather than product specs, that is called out.
 
 For day-to-day env vars, runbooks, and operations, see **[`docs/OPERATIONS.md`](./docs/OPERATIONS.md)** and the root **[`README.md`](./README.md)**.
 
@@ -8,9 +8,9 @@ For day-to-day env vars, runbooks, and operations, see **[`docs/OPERATIONS.md`](
 
 ## 1. Project Overview
 
-### What MediaAuth is
+### What Observyx is
 
-**MediaAuth** is a SaaS-style application for **media authenticity analysis**: users authenticate, submit **file uploads** or **URLs**, and receive **structured scan results** (confidence, AI-generation signal where applicable, summary, and provider-specific detail) backed by **Postgres** and optional **object storage** (local filesystem or S3-compatible).
+**Observyx** is a SaaS-style application for **media authenticity analysis**: users authenticate, submit **file uploads** or **URLs**, and receive **structured scan results** (confidence, AI-generation signal where applicable, summary, and provider-specific detail) backed by **Postgres** and optional **object storage** (local filesystem or S3-compatible).
 
 ### Problem it addresses
 
@@ -203,7 +203,7 @@ Ordered by **impact × practicality** for a small team (re-evaluate quarterly):
 
 ## 8. Conclusion
 
-**MediaAuth** already demonstrates a **credible vertical slice**: auth, scan CRUD, storage abstraction, pluggable detection with a **real vendor path (Reality Defender)**, worker/queue orchestration, **direct mode** for lean operation, a usable **web app** with preview and analytics endpoints, and **operator-facing** internal tools. That is a strong base for a authenticity-focused SaaS.
+**Observyx** already demonstrates a **credible vertical slice**: auth, scan CRUD, storage abstraction, pluggable detection with a **real vendor path (Reality Defender)**, worker/queue orchestration, **direct mode** for lean operation, a usable **web app** with preview and analytics endpoints, and **operator-facing** internal tools. That is a strong base for a authenticity-focused SaaS.
 
 What is **not** implied by the repo alone: full **multi-tenant enterprise** features, **legal certification** of outputs, **deep media-type coverage** on the real provider path (verify against current Reality Defender integration scope in code/docs), or **complete** observability/compliance—those are **next-phase** investments.
 
@@ -213,7 +213,7 @@ What is **not** implied by the repo alone: full **multi-tenant enterprise** feat
 
 ## Executive summary (quick read)
 
-- **MediaAuth** is a monorepo SaaS for **media authenticity scans**: **web** + **Express API** + **worker** + shared **scan-storage** (local/S3).
+- **Observyx** is a monorepo SaaS for **media authenticity scans**: **web** + **Express API** + **worker** + shared **scan-storage** (local/S3).
 - **Flow**: authenticated scan create → persist media/metadata → **`processScanById`** (worker **or** API **direct** mode) → provider (**mock** / **real** / **Reality Defender**) → normalized result → **Postgres** + **JSONB** payload; **web** shows history, detail, and **media preview**.
 - **Strengths**: shared pipeline, explicit provider contract, storage abstraction, ops docs/scripts, internal admin routes, env-driven **direct vs queue** cost/latency tradeoff.
 - **Gaps / risks**: reliance on external detectors, trust/copy around verdicts, **direct mode** scaling limits, schema/observability maturity for enterprise.

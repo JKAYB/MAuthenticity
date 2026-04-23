@@ -6,7 +6,7 @@ import { SectionHeader } from "@/components/ui-ext/SectionHeader";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/notifications")({
-  head: () => ({ meta: [{ title: "Notifications — MediaAuth" }] }),
+  head: () => ({ meta: [{ title: "Notifications — Observyx" }] }),
   component: NotificationsPage,
 });
 

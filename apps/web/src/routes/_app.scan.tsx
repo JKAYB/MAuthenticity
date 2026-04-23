@@ -22,7 +22,7 @@ import { scanKeys } from "@/features/scan/queryKeys";
 import { getLiveDemoSnapshot, isLiveDemo, subscribeLiveDemo } from "@/lib/demo-mode";
 
 export const Route = createFileRoute("/_app/scan")({
-  head: () => ({ meta: [{ title: "New scan — MediaAuth" }] }),
+  head: () => ({ meta: [{ title: "New scan — Observyx" }] }),
   component: ScanPage,
 });
 

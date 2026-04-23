@@ -8,7 +8,9 @@ export const scanKeys = {
     page?: number,
     limit?: number,
     mediaType?: "image" | "video" | "audio" | "document" | "other",
-  ) => [...scanKeys.all, "history", { page, limit, mediaType }] as const,
+    result?: "authentic" | "manipulated" | "suspicious" | "analyzing" | "failed",
+    q?: string,
+  ) => [...scanKeys.all, "history", { page, limit, mediaType, result, q }] as const,
   detail: (id: string) => [...scanKeys.all, "detail", id] as const,
   analyticsActivity: (range: string) => [...scanKeys.all, "analytics", "activity", range] as const,
   analyticsDetectionMix: (range: string) =>
