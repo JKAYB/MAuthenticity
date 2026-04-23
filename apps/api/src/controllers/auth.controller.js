@@ -74,6 +74,11 @@ async function signup(req, res, next) {
       return res.status(400).json({ error: policyErr });
     }
 
+    const existing = await pool.query("SELECT id FROM users WHERE email = $1 LIMIT 1", [email]);
+    if (existing.rows[0]) {
+      return res.status(409).json({ error: "Email already exists" });
+    }
+
     const passwordHash = await bcrypt.hash(password, 12);
     const userId = uuidv4();
 
@@ -90,6 +95,9 @@ async function signup(req, res, next) {
     setAuthCookie(res, token);
     return res.status(201).json({ ok: true });
   } catch (error) {
+    if (error && error.code === "23505") {
+      return res.status(409).json({ error: "Email already exists" });
+    }
     return next(error);
   }
 }

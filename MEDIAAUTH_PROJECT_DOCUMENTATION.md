@@ -6,7 +6,7 @@ For day-to-day env vars, runbooks, and operations, see **[`docs/OPERATIONS.md`](
 
 ---
 
-## 1. Project Overview˝
+## 1. Project Overview
 
 ### What MediaAuth is
 
@@ -28,10 +28,10 @@ Teams need a **repeatable way** to run authenticity / manipulation-oriented chec
 | Area | State (as of this codebase) |
 |------|-----------------------------|
 | Monorepo | Stable workspaces: `apps/api`, `apps/worker`, `apps/web`, `packages/scan-storage`. |
-| Auth | JWT-based auth, signup/login, `/me` profile and password change; `api_keys` table exists in schema. |
-| Scans | Create from upload or URL; statuses `pending` → `processing` → `completed` / `failed`; retries and admin tooling where implemented. |
+| Auth | HttpOnly cookie auth (`auth_token`) for web sessions, signup/login/logout, `/me` profile and password change; API keys supported with masked key listing and one-time full key on creation. |
+| Scans | Create from upload or URL; statuses `pending` → `processing` → `completed` / `failed`; scan history supports backend `mediaType` filtering (`image`/`video`/`audio`/`document`/`other`). |
 | Detection | **Mock** and **real** providers; **Reality Defender** integration path with normalization contract (`isAiGenerated` nullable for inconclusive outcomes). |
-| Frontend | Vite + React (TanStack Router); dashboard, scan flow, scan detail with **media preview** (authenticated fetch to API media route). |
+| Frontend | Vite + React (TanStack Router); dashboard, scan flow, scan detail with authenticated media preview, heatmap/artifact streaming, and report export support. |
 | Marketing | Landing, how-it-works, shared marketing header patterns. |
 | Deploy | README references Netlify in CORS allowlist example; **production posture** (hosting, secrets, SLAs) is environment-specific—not fully encoded in-repo. |
 
@@ -45,9 +45,9 @@ This is a **working product foundation**, not a complete enterprise compliance p
 
 | Path | Responsibility |
 |------|----------------|
-| **`apps/api`** | **Express** API: CORS, JSON body, **`/auth`**, **`/scan`** (JWT + optional API key path per routes), **`/me`**, **`/internal/scans`** (token-gated ops). Enqueues BullMQ jobs or runs **`processScanById`** inline when **`SCAN_EXECUTION_MODE=direct`**. Uses **`@media-auth/scan-storage`** for uploads. **`/ready`** checks Postgres and Redis (Redis skipped when direct mode). |
+| **`apps/api`** | **Express** API: CORS + credentials, cookie parser, JSON body, **`/auth`**, **`/scan`**, **`/me`**, **`/internal/scans`** (token-gated ops). Web auth is cookie-based (`auth_token`) and private routes apply no-store cache headers. Enqueues BullMQ jobs or runs **`processScanById`** inline when **`SCAN_EXECUTION_MODE=direct`**. Uses **`@media-auth/scan-storage`** for uploads and derived assets. **`/ready`** checks Postgres and Redis (Redis skipped when direct mode). |
 | **`apps/worker`** | **BullMQ** worker on queue **`scan-jobs`**: runs the **same** `processScanById` pipeline as direct mode—resolve media from DB/storage, **`runDetection`**, mark completed/failed. Concurrency and optional rate limiting via env. |
-| **`apps/web`** | **SPA**: authenticated app shell (dashboard, scans list, scan detail, upload flow, notifications, settings), marketing routes, login/signup using **`AuthShell`**. Internal ops UI when build-time token is set. |
+| **`apps/web`** | **SPA**: authenticated app shell (dashboard, scans list, scan detail, upload flow, notifications, settings), marketing routes, login/signup using **`AuthShell`**. Browser-side internal ops calls are intentionally disabled; internal ops endpoints are backend-only. |
 | **`packages/scan-storage`** | **Factory**-based storage: **`OBJECT_STORAGE_PROVIDER`** `local` \| `s3`; validation, key helpers, CLI **`storage:check`**, tests including optional MinIO integration. |
 
 ### Scan lifecycle (upload → result)
@@ -81,9 +81,10 @@ High-level flow (queue mode; direct mode collapses steps 2–3 into the API proc
 
 ### Deployment-level overview
 
-- **API** listens on **`PORT`** (default 4000); **web** is a static/Vite app with **`VITE_API_BASE_URL`** (or equivalent) pointing at the API.
-- **CORS** origins are configurable via **`CORS_ORIGIN`** (comma-separated); README includes localhost and an example Netlify origin.
-- **Internal ops**: API routes under **`/internal/scans`** require **`INTERNAL_OPS_TOKEN`**; web exposes **`/internal/scans`** only when **`VITE_INTERNAL_OPS_TOKEN`** is set at build time (token is inlined—**internal deploys only**).
+- **API** listens on **`PORT`** (default 4000); **web** is a static/Vite app with **`VITE_API_BASE_URL`** pointing at the API.
+- **CORS** is configured with `credentials: true` and an explicit allowlist (`CORS_ORIGIN`) plus loopback dev origins.
+- **Session cookie behavior**: development uses `SameSite=Lax` + `Secure=false`; production uses `SameSite=None` + `Secure=true` for cross-site frontend/API deployments.
+- **Internal ops**: API routes under **`/internal/scans`** require **`INTERNAL_OPS_TOKEN`**; browser clients do not send internal tokens and cannot call internal ops endpoints directly.
 
 ---
 
@@ -93,11 +94,17 @@ Concrete capabilities already present in the codebase:
 
 - **Clear separation of concerns**: API vs worker vs web vs shared storage package; worker and API **share** `processScanById` to avoid divergent pipelines.
 - **Authentication and user model**: users table, password hashing, JWT issuance, profile/password endpoints; scans associated with **`user_id`**.
+- **Hardened web auth transport**: JWT is now carried in HttpOnly cookies (`credentials: include`) instead of localStorage/bearer injection for browser sessions.
+- **Signup safety**: duplicate email protection at validation and DB race level (`409 Email already exists`) plus unique-email migration for existing DBs.
 - **Scan pipeline discipline**: explicit statuses, **`markProcessing` / `markCompleted` / `markFailed`**, idempotent skip if already completed, structured logging prefixes for direct mode.
 - **Provider integration**: **mock** for fast feedback; **real** with **generic HTTP** and **Reality Defender** vendor branch; **normalization layer** (`normalizeProviderResult`) enforcing finite confidence, optional **`null`** `isAiGenerated`, non-empty summary, and **`details`** object shape.
 - **Database**: indexed **`(user_id, created_at DESC)`** for history; incremental **`ALTER … IF NOT EXISTS`** style migrations for safer upgrades on existing DBs.
+- **Private route cache hardening**: private/authenticated endpoints apply `Cache-Control: no-store, private, max-age=0` with `Pragma/Expires` no-cache headers.
+- **Artifact and heatmap reliability**: expiring vendor URLs are persisted as internal assets and streamed via authenticated API endpoints.
+- **History UX/API alignment**: normalized media-type filtering (`image`, `video`, `audio`, `document`, `other`) is enforced server-side and exposed to frontend filters.
 - **Operational tooling**: health/ready endpoints, **`dev:check`** script, Docker Compose for Postgres/Redis/MinIO, integration tests for API/worker, storage check CLIs, internal retry/reset-stuck style operations (see OPERATIONS).
 - **Frontend**: TanStack Router structure, React Query patterns for scans, **scan detail** with **media preview** component fetching **`/scan/:id/media`** with auth; dashboard analytics hooks to **`/scan/analytics/*`** endpoints.
+- **Frontend robustness work**: login/auth shell and LiquidEther integration are now strict-TypeScript compatible; `three` typings are included in web dev dependencies.
 - **Performance / cost-minded choices**: optional **direct** execution; **LiquidEther** and marketing pages tuned for scroll/LCP in web (separate from API); worker **concurrency** and **rate limiter** hooks via env.
 - **Documentation**: README + OPERATIONS for operators; JSDoc contracts for provider input/output.
 
@@ -170,7 +177,7 @@ Each row: **why it matters** → **current state** (brief) → **suggested mitig
 | **User trust & verdict wording** | Overconfident UI destroys credibility. | Summary + confidence stored; copy is app-defined. | Content review with legal/comms; show uncertainty explicitly. |
 | **Cost scaling with volume** | Provider + storage + egress fees grow with scans. | Direct mode reduces Redis/worker cost; provider calls per scan remain. | Budgets/alerts, queue mode for burst absorption, rate limits (`SCAN_WORKER_RATE_*`), plan tiers. |
 | **Long-running requests in direct mode** | Timeouts, connection limits, poor UX. | Processing runs in API request continuation after insert (as implemented). | Move heavy work to queue for production scale; set strict timeouts on provider HTTP; async “pending” UX already fits queue mode. |
-| **Storage / security / privacy** | User media is sensitive. | Storage keys, authenticated media route, internal ops gated. | Encryption at rest (S3), retention policy, access logs, DPA with vendors, minimize PII in logs. |
+| **Storage / security / privacy** | User media is sensitive. | Storage keys are not exposed to UI; authenticated media/heatmap/artifact routes; internal ops gated backend-side. | Encryption at rest (S3), retention policy, access logs, DPA with vendors, minimize PII in logs. |
 | **Media size & performance** | Large files stress memory and timeouts. | Reality Defender path has size checks in adapter; generic limits depend on config. | Central size caps in API before accept; streaming/chunked upload where applicable; clear user errors. |
 | **Operational blind spots** | Failures invisible until users complain. | Logging and internal ops exist. | Metrics, alerting on failure rate, stuck scan detection (partially present in ops). |
 | **Vendor lock-in** | Hard to negotiate or migrate. | First-class Reality Defender path + generic real URL. | Maintain adapter boundary; keep normalized internal model. |
@@ -188,7 +195,7 @@ Ordered by **impact × practicality** for a small team (re-evaluate quarterly):
 3. **Second provider (pilot)** behind same interface to prove multi-vendor architecture before building aggregation.
 4. **Explainability pass**: scan detail UI for `result_payload` (collapsible technical detail + plain-language summary).
 5. **Observability baseline**: structured logs + one dashboard (latency, failure rate, queue depth).
-6. **Security review**: media access authorization on every path, token storage in web, CORS lockdown for production origins only.
+6. **Security review**: media access authorization on every path, cookie/session handling, CSRF planning, and CORS lockdown for production origins only.
 7. **Automated integration tests** for URL scans and S3 paths if not already as broad as upload-local.
 8. **Billing / limits** (if going to paid): wire `plan` to enforcement on scan creation and API keys.
 
