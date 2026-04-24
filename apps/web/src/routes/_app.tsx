@@ -12,6 +12,7 @@ export const Route = createFileRoute("/_app")({
       disableLiveDemo();
     } catch (e) {
       if (isRedirect(e)) throw e;
+      console.info("[auth] redirect target", "/login");
       throw redirect({
         to: "/login",
         search: { redirect: location.pathname },

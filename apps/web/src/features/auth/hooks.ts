@@ -9,6 +9,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useSyncExternalStore } from "react";
 import { disableLiveDemo, getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
 import {
+  ApiHttpError,
   changePassword as changePasswordRequest,
   getMe,
   loginRequest,
@@ -32,7 +33,23 @@ export function meQueryOptions() {
 
 /** Ensures `/me` is loaded (e.g. from route `beforeLoad`). */
 export async function prefetchMe() {
-  return getRouterQueryClient().ensureQueryData(meQueryOptions());
+  const qc = getRouterQueryClient();
+  console.info("[auth] loading started");
+  try {
+    const data = await qc.ensureQueryData(meQueryOptions());
+    console.info("[auth] /me success");
+    return data;
+  } catch (error) {
+    const status = error instanceof ApiHttpError ? error.status : "unknown";
+    console.warn("[auth] /me failed with status", status);
+    if (status === 401 || status === 403) {
+      qc.removeQueries({ queryKey: meQueryKey });
+      qc.setQueryData(meQueryKey, undefined);
+    }
+    throw error;
+  } finally {
+    console.info("[auth] loading finished");
+  }
 }
 
 /**

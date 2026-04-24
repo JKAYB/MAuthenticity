@@ -10,6 +10,7 @@ export const Route = createFileRoute("/signup")({
     if (typeof window === "undefined") return;
     try {
       await prefetchMe();
+      console.info("[auth] redirect target", "/dashboard");
       throw redirect({ to: "/dashboard" });
     } catch (e) {
       if (isRedirect(e)) throw e;

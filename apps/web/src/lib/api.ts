@@ -14,6 +14,16 @@ export function apiBase(): string {
 
 export type ApiErrorBody = { error?: string };
 
+export class ApiHttpError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiHttpError";
+    this.status = status;
+  }
+}
+
 async function parseJson(res: Response): Promise<unknown> {
   const text = await res.text();
   if (!text) return {};
@@ -35,7 +45,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     headers.set("Content-Type", "application/json");
   }
   const res = await fetch(`${apiBase()}${path}`, { ...init, headers, credentials: "include" });
-  if (res.status === 401) {
+  if (res.status === 401 || res.status === 403) {
     try {
       getRouterQueryClient().removeQueries({ queryKey: meQueryKey });
     } catch {
@@ -51,7 +61,7 @@ export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<
   if (!res.ok) {
     const msg =
       typeof data === "object" && data && "error" in data ? String(data.error) : res.statusText;
-    throw new Error(msg || `Request failed (${res.status})`);
+    throw new ApiHttpError(res.status, msg || `Request failed (${res.status})`);
   }
   return data as T;
 }
@@ -99,7 +109,18 @@ export type MeResponse = {
 };
 
 export async function getMe(): Promise<MeResponse> {
-  return apiJson<MeResponse>("/me");
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), 10_000);
+  try {
+    return await apiJson<MeResponse>("/me", { signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Auth bootstrap timed out");
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 }
 
 export async function updateProfile(body: {

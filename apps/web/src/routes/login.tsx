@@ -32,6 +32,7 @@ export const Route = createFileRoute("/login")({
     if (typeof window === "undefined") return;
     try {
       await prefetchMe();
+      console.info("[auth] redirect target", "/dashboard");
       throw redirect({ to: "/dashboard" });
     } catch (e) {
       if (isRedirect(e)) throw e;
@@ -196,7 +197,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
           <BorderGlow
             edgeSensitivity={30}
             glowColor="40 80 80"
-            backgroundColor={isDark ? "#120F17" : "#f9fafc"}
+            backgroundColor={isDark ? "#070c17" : "#f9fafc"}
             borderRadius={28}
             glowRadius={40}
             glowIntensity={0.8}
