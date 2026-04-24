@@ -105,6 +105,9 @@ export type MeResponse = {
   email: string;
   name: string | null;
   organization: string | null;
+  organizationId?: string | null;
+  organizationName?: string | null;
+  organizationPlan?: string | null;
   plan: string;
   selectedPlan: string;
   plan_selected: boolean;
@@ -194,9 +197,23 @@ export type TeamMemberRow = {
   must_change_password: boolean;
 };
 
+export type TeamInviteRow = {
+  id: string;
+  email: string;
+  role: string;
+  status: "pending" | "accepted" | "declined" | "expired" | "revoked";
+  expires_at: string | null;
+  accepted_at: string | null;
+  declined_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type MyTeamResponse = {
   team: { id: string; owner_user_id: string; name: string | null; created_at: string } | null;
   members: TeamMemberRow[];
+  invites: TeamInviteRow[];
   role?: "team_owner" | "team_member" | null;
 };
 
@@ -206,14 +223,34 @@ export async function getMyTeam(): Promise<MyTeamResponse> {
 
 export async function addTeamMember(email: string): Promise<{
   ok: boolean;
-  user_id: string;
-  email: string;
-  temporary_password: string;
-  must_change_password: boolean;
+  status: "invitation_sent";
+  invite: TeamInviteRow | null;
 }> {
   return apiJson("/access/team/members", {
     method: "POST",
     body: JSON.stringify({ email }),
+  });
+}
+
+export async function acceptTeamInvite(token: string): Promise<{ ok: boolean; status: "accepted" }> {
+  return apiJson("/access/team/invites/accept", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function declineTeamInvite(token: string): Promise<{ ok: boolean; status: "declined" }> {
+  return apiJson("/access/team/invites/decline", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function resendTeamInvite(
+  inviteId: string,
+): Promise<{ ok: boolean; status: "invitation_sent"; inviteId: string }> {
+  return apiJson(`/access/team/invites/${encodeURIComponent(inviteId)}/resend`, {
+    method: "POST",
   });
 }
 

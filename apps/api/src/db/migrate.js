@@ -27,6 +27,11 @@ async function runMigrations() {
   await pool.query(
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_selected BOOLEAN NOT NULL DEFAULT TRUE`
   );
+  await pool.query(`ALTER TABLE users ALTER COLUMN email TYPE TEXT`);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique
+    ON users (lower(email));
+  `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS plans (
@@ -69,6 +74,42 @@ async function runMigrations() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (team_id, user_id)
     );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS team_member_invites (
+      id UUID PRIMARY KEY,
+      team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      email TEXT NOT NULL,
+      invited_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL DEFAULT 'team_member',
+      status TEXT NOT NULL DEFAULT 'pending',
+      token_hash TEXT,
+      expires_at TIMESTAMPTZ,
+      accepted_at TIMESTAMPTZ,
+      declined_at TIMESTAMPTZ,
+      revoked_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (team_id, email)
+    );
+  `);
+  await pool.query(`ALTER TABLE team_member_invites ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'team_member'`);
+  await pool.query(`ALTER TABLE team_member_invites ADD COLUMN IF NOT EXISTS token_hash TEXT`);
+  await pool.query(`ALTER TABLE team_member_invites ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE team_member_invites ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE team_member_invites ADD COLUMN IF NOT EXISTS declined_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE team_member_invites ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ`);
+  await pool.query(
+    `ALTER TABLE team_member_invites ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+  );
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS team_member_invites_team_email_pending_idx
+    ON team_member_invites (team_id, lower(email))
+    WHERE status = 'pending';
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS team_member_invites_token_hash_idx
+    ON team_member_invites (token_hash);
   `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS subscriptions (

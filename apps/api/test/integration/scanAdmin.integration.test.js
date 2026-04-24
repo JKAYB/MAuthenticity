@@ -354,12 +354,22 @@ d("internal scan admin API", () => {
 
   it("user scan history is unchanged and does not require internal token", async () => {
     const email = `u-${crypto.randomBytes(6).toString("hex")}@t.local`;
-    const token = await signupLogin(baseUrl, email, "TestUser1!");
+    const password = "TestUser1!";
+    await signupLogin(baseUrl, email, password);
     const uid = (await pool.query(`SELECT id FROM users WHERE email = $1`, [email])).rows[0].id;
     createdUserIds.push(uid);
+    const login = await fetchJson(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    assert.equal(login.res.status, 200, `login: ${JSON.stringify(login.body)}`);
+    const setCookie = login.res.headers.get("set-cookie");
+    assert.ok(setCookie && setCookie.includes("auth_token="), "missing auth_token cookie");
+    const authCookie = setCookie.split(";")[0];
 
     const hist = await fetchJson(`${baseUrl}/scan/history`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Cookie: authCookie }
     });
     assert.equal(hist.res.status, 200);
     assert.ok(Array.isArray(hist.body.data));

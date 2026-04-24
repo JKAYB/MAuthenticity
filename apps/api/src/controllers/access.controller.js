@@ -1,6 +1,7 @@
-const bcrypt = require("bcrypt");
 const { v4: uuidv4 } = require("uuid");
+const crypto = require("crypto");
 const { pool } = require("../db/pool");
+const { normalizeEmail } = require("../utils/normalizeEmail");
 const {
   canManageTeam,
   getEffectivePlan,
@@ -16,8 +17,31 @@ const PAID_DURATION_DAYS = {
   [PLAN_CODE_TEAM]: 30,
 };
 
-function randomTempPassword() {
-  return `Temp${Math.random().toString(36).slice(2, 10)}A1!`;
+const INVITE_TTL_DAYS = 7;
+
+function sha256(input) {
+  return crypto.createHash("sha256").update(input).digest("hex");
+}
+
+function createInviteToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function inviteUrlForToken(rawToken) {
+  const appBase = String(process.env.APP_BASE_URL || "http://localhost:5173").replace(/\/+$/, "");
+  return `${appBase}/accept-invite?token=${encodeURIComponent(rawToken)}`;
+}
+
+async function expirePendingInvitesForTeam(teamId) {
+  await pool.query(
+    `UPDATE team_member_invites
+     SET status = 'expired', updated_at = NOW()
+     WHERE team_id = $1
+       AND status = 'pending'
+       AND expires_at IS NOT NULL
+       AND expires_at <= NOW()`,
+    [teamId],
+  );
 }
 
 async function selectPlan(req, res, next) {
@@ -115,8 +139,9 @@ async function getMyTeam(req, res, next) {
   try {
     const effectivePlan = await getEffectivePlan(req.user.id);
     if (!effectivePlan.teamId) {
-      return res.json({ team: null, members: [] });
+      return res.json({ team: null, members: [], invites: [] });
     }
+    await expirePendingInvitesForTeam(effectivePlan.teamId);
     const teamQ = await pool.query("SELECT id, owner_user_id, name, created_at FROM teams WHERE id = $1", [
       effectivePlan.teamId,
     ]);
@@ -124,13 +149,26 @@ async function getMyTeam(req, res, next) {
       `SELECT u.id, u.email, tm.role, tm.status, u.must_change_password
        FROM team_members tm
        JOIN users u ON u.id = tm.user_id
-       WHERE tm.team_id = $1
+       WHERE tm.team_id = $1 AND tm.status = 'active'
        ORDER BY u.email ASC`,
       [effectivePlan.teamId],
     );
+    const invitesQ = await pool.query(
+      `SELECT id, email, role, status, expires_at, accepted_at, declined_at, revoked_at, created_at, updated_at
+       FROM team_member_invites
+       WHERE team_id = $1
+       ORDER BY created_at DESC`,
+      [effectivePlan.teamId],
+    );
+    const activeEmails = new Set(membersQ.rows.map((m) => normalizeEmail(m.email)));
+    const invites = invitesQ.rows.filter((inv) => {
+      if (inv.status !== "accepted") return true;
+      return !activeEmails.has(normalizeEmail(inv.email));
+    });
     return res.json({
       team: teamQ.rows[0] || null,
       members: membersQ.rows,
+      invites,
       role: effectivePlan.teamRole,
     });
   } catch (error) {
@@ -144,43 +182,205 @@ async function addTeamMember(req, res, next) {
     if (!teamCheck.ok) {
       return res.status(403).json({ error: "Only team owner can manage members" });
     }
-    const email = String(req.body?.email || "").trim().toLowerCase();
+    const email = normalizeEmail(req.body?.email);
+    const resend = Boolean(req.body?.resend);
     if (!email) return res.status(400).json({ error: "email is required" });
+    await expirePendingInvitesForTeam(teamCheck.effectivePlan.teamId);
 
-    let user = (await pool.query("SELECT id FROM users WHERE email = $1 LIMIT 1", [email])).rows[0];
-    const tempPassword = randomTempPassword();
-    const passwordHash = await bcrypt.hash(tempPassword, 12);
-    if (!user) {
-      const newId = uuidv4();
-      await pool.query(
-        `INSERT INTO users (id, email, password_hash, plan, plan_selected, must_change_password)
-         VALUES ($1, $2, $3, $4, TRUE, TRUE)`,
-        [newId, email, passwordHash, PLAN_CODE_TEAM],
-      );
-      user = { id: newId };
-    } else {
-      await pool.query(
-        `UPDATE users
-         SET password_hash = $1, must_change_password = TRUE, plan = $2, plan_selected = TRUE
-         WHERE id = $3`,
-        [passwordHash, PLAN_CODE_TEAM, user.id],
-      );
+    const activeMemberQ = await pool.query(
+      `SELECT u.id
+       FROM team_members tm
+       JOIN users u ON u.id = tm.user_id
+       WHERE tm.team_id = $1
+         AND tm.status = 'active'
+         AND lower(u.email) = lower($2)
+       LIMIT 1`,
+      [teamCheck.effectivePlan.teamId, email],
+    );
+    if (activeMemberQ.rows[0]) {
+      return res.status(409).json({ error: "already_member", code: "already_member" });
     }
 
-    await pool.query(
-      `INSERT INTO team_members (team_id, user_id, role, status)
-       VALUES ($1, $2, 'team_member', 'active')
-       ON CONFLICT (team_id, user_id) DO UPDATE SET role = 'team_member', status = 'active'`,
-      [teamCheck.effectivePlan.teamId, user.id],
+    const existingInviteQ = await pool.query(
+      `SELECT id, email, role, status, expires_at, created_at, updated_at
+       FROM team_member_invites
+       WHERE team_id = $1 AND lower(email) = lower($2)
+       LIMIT 1`,
+      [teamCheck.effectivePlan.teamId, email],
     );
+    const existingInvite = existingInviteQ.rows[0] || null;
+    if (existingInvite && existingInvite.status === "pending" && !resend) {
+      return res.status(200).json({
+        ok: true,
+        status: "invitation_sent",
+        invite: existingInvite,
+      });
+    }
 
+    const rawToken = createInviteToken();
+    const tokenHash = sha256(rawToken);
+    await pool.query(
+      `INSERT INTO team_member_invites (
+         id, team_id, email, invited_by_user_id, role, status, token_hash, expires_at, updated_at
+       )
+       VALUES ($1, $2, $3, $4, 'team_member', 'pending', $5, NOW() + INTERVAL '${INVITE_TTL_DAYS} days', NOW())
+       ON CONFLICT (team_id, email)
+       DO UPDATE SET
+         role = EXCLUDED.role,
+         status = 'pending',
+         token_hash = EXCLUDED.token_hash,
+         invited_by_user_id = EXCLUDED.invited_by_user_id,
+         expires_at = EXCLUDED.expires_at,
+         accepted_at = NULL,
+         declined_at = NULL,
+         revoked_at = NULL,
+         updated_at = NOW()`,
+      [uuidv4(), teamCheck.effectivePlan.teamId, email, req.user.id, tokenHash],
+    );
+    const inviteQ = await pool.query(
+      `SELECT id, email, role, status, expires_at, created_at, updated_at
+       FROM team_member_invites
+       WHERE team_id = $1 AND lower(email) = lower($2)
+       LIMIT 1`,
+      [teamCheck.effectivePlan.teamId, email],
+    );
+    console.log("pending_invite_created");
+    console.log("invite_url", inviteUrlForToken(rawToken));
     return res.status(201).json({
       ok: true,
-      user_id: user.id,
-      email,
-      temporary_password: tempPassword,
-      must_change_password: true,
+      status: "invitation_sent",
+      invite: inviteQ.rows[0] || null,
     });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function acceptTeamInvite(req, res, next) {
+  try {
+    const token = String(req.body?.token || "").trim();
+    if (!token) return res.status(400).json({ error: "token is required" });
+    if (!req.user?.id) return res.status(401).json({ error: "requires_auth" });
+    const tokenHash = sha256(token);
+    const inviteQ = await pool.query(
+      `SELECT id, team_id, email, role, status, expires_at
+       FROM team_member_invites
+       WHERE token_hash = $1
+       LIMIT 1`,
+      [tokenHash],
+    );
+    const invite = inviteQ.rows[0];
+    if (!invite) return res.status(404).json({ error: "invite_not_found" });
+    if (invite.status !== "pending") return res.status(409).json({ error: "invite_not_pending" });
+    if (invite.expires_at && new Date(invite.expires_at).getTime() <= Date.now()) {
+      await pool.query(`UPDATE team_member_invites SET status = 'expired', updated_at = NOW() WHERE id = $1`, [invite.id]);
+      return res.status(409).json({ error: "invite_expired" });
+    }
+    const meQ = await pool.query("SELECT id, email FROM users WHERE id = $1 LIMIT 1", [req.user.id]);
+    const me = meQ.rows[0];
+    if (!me) return res.status(404).json({ error: "user_not_found" });
+    if (normalizeEmail(me.email) !== normalizeEmail(invite.email)) {
+      return res.status(403).json({ error: "email_mismatch" });
+    }
+    await pool.query("BEGIN");
+    try {
+      await pool.query(
+        `INSERT INTO team_members (team_id, user_id, role, status)
+         VALUES ($1, $2, $3, 'active')
+         ON CONFLICT (team_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = 'active'`,
+        [invite.team_id, me.id, invite.role || "team_member"],
+      );
+      await pool.query(
+        `UPDATE team_member_invites
+         SET status = 'accepted', accepted_at = NOW(), updated_at = NOW(), token_hash = NULL
+         WHERE id = $1`,
+        [invite.id],
+      );
+      await pool.query("COMMIT");
+      return res.json({ ok: true, status: "accepted" });
+    } catch (txError) {
+      await pool.query("ROLLBACK");
+      throw txError;
+    }
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function declineTeamInvite(req, res, next) {
+  try {
+    const token = String(req.body?.token || "").trim();
+    if (!token) return res.status(400).json({ error: "token is required" });
+    const tokenHash = sha256(token);
+    const inviteQ = await pool.query(
+      `SELECT id, status, expires_at
+       FROM team_member_invites
+       WHERE token_hash = $1
+       LIMIT 1`,
+      [tokenHash],
+    );
+    const invite = inviteQ.rows[0];
+    if (!invite) return res.status(404).json({ error: "invite_not_found" });
+    if (invite.status !== "pending") return res.status(409).json({ error: "invite_not_pending" });
+    if (invite.expires_at && new Date(invite.expires_at).getTime() <= Date.now()) {
+      await pool.query(`UPDATE team_member_invites SET status = 'expired', updated_at = NOW() WHERE id = $1`, [invite.id]);
+      return res.status(409).json({ error: "invite_expired" });
+    }
+    await pool.query(
+      `UPDATE team_member_invites
+       SET status = 'declined', declined_at = NOW(), updated_at = NOW(), token_hash = NULL
+       WHERE id = $1`,
+      [invite.id],
+    );
+    return res.json({ ok: true, status: "declined" });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function resendTeamInvite(req, res, next) {
+  try {
+    const teamCheck = await canManageTeam(req.user.id);
+    if (!teamCheck.ok) {
+      return res.status(403).json({ error: "Only team owner can manage members" });
+    }
+    const inviteId = String(req.params.inviteId || "").trim();
+    if (!inviteId) return res.status(400).json({ error: "inviteId is required" });
+    const inviteQ = await pool.query(
+      `SELECT id, team_id, status
+       FROM team_member_invites
+       WHERE id = $1
+       LIMIT 1`,
+      [inviteId],
+    );
+    const invite = inviteQ.rows[0];
+    if (!invite || invite.team_id !== teamCheck.effectivePlan.teamId) {
+      return res.status(404).json({ error: "invite_not_found" });
+    }
+    if (invite.status === "accepted") {
+      return res.status(409).json({ error: "cannot_resend_accepted" });
+    }
+    if (!["pending", "declined", "expired", "revoked"].includes(invite.status)) {
+      return res.status(409).json({ error: "invite_not_resendable" });
+    }
+    const rawToken = createInviteToken();
+    const tokenHash = sha256(rawToken);
+    await pool.query(
+      `UPDATE team_member_invites
+       SET status = 'pending',
+           token_hash = $2,
+           expires_at = NOW() + INTERVAL '${INVITE_TTL_DAYS} days',
+           invited_by_user_id = $3,
+           accepted_at = NULL,
+           declined_at = NULL,
+           revoked_at = NULL,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [inviteId, tokenHash, req.user.id],
+    );
+    console.log("pending_invite_created");
+    console.log("invite_url", inviteUrlForToken(rawToken));
+    return res.json({ ok: true, status: "invitation_sent", inviteId });
   } catch (error) {
     return next(error);
   }
@@ -209,5 +409,8 @@ module.exports = {
   getAccessState,
   getMyTeam,
   addTeamMember,
+  acceptTeamInvite,
+  declineTeamInvite,
+  resendTeamInvite,
   removeTeamMember,
 };

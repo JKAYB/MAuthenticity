@@ -18,6 +18,7 @@ import type { Scan } from "@/lib/mock-data";
 import type { ScanAnalyticsRange } from "@/lib/api";
 import { metrics as demoMetrics, scans as demoScans, user as demoUser } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+import { getEffectivePlan } from "@/features/billing/getEffectivePlan";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Observyx" }] }),
@@ -100,10 +101,13 @@ function Dashboard() {
     const orgEyebrow = liveDemo
     ? `${demoUser.org} · ${formatPlanName(demoUser.plan)}`
     : meQuery.isSuccess && meQuery.data
-      ? `${meQuery.data.organization?.trim() || "Workspace"} · ${formatPlanName(meQuery.data.plan)}`
+      ? `${meQuery.data.organizationName?.trim() || meQuery.data.organization?.trim() || "Workspace"} · ${formatPlanName(getEffectivePlan(meQuery.data))}`
       : loading || meQuery.isPending
         ? "Loading workspace…"
         : "Workspace";
+  const hasTeamPlan = Boolean(
+    meQuery.data?.organizationId && meQuery.data?.organizationPlan,
+  );
 
   const analyticsChartError =
     !liveDemo && activityQuery.isError ? activityQuery.error.message : null;
@@ -123,6 +127,11 @@ function Dashboard() {
             <div className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
               {orgEyebrow}
             </div>
+            {!liveDemo && hasTeamPlan ? (
+              <span className="mt-2 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                Team plan
+              </span>
+            ) : null}
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
               {liveDemo ? "Welcome to the demo." : "Welcome back."}
             </h1>

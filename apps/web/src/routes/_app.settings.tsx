@@ -22,6 +22,7 @@ import { SectionHeader } from "@/components/ui-ext/SectionHeader";
 import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { getPlanLabel, isExpiredPlan, isFreePlan, isPaidPlan, shouldShowUpgradeCard } from "@/features/billing/planAccess";
+import { getEffectivePlan } from "@/features/billing/getEffectivePlan";
 
 export const Route = createFileRoute("/_app/settings")({
   validateSearch: (raw: Record<string, unknown>): { tab?: SettingsTabId } => {
@@ -75,16 +76,7 @@ function SettingsPage() {
         description={
           liveDemo
             ? "Sample account data for the live demo."
-            : "Manage your profile, security, and notification preferences."
-        }
-      // action={
-      //   tab === "profile" ? (
-      //     <Link to="/profile" className="text-sm font-medium text-primary hover:underline">
-      //       Profile page →
-      //     </Link>
-      //   ) : undefined
-      // }
-      />
+            : "Manage your profile, security, and notification preferences."}/>
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,200px)_minmax(0,1fr)]">
         <nav className="flex min-w-0 flex-col gap-1 rounded-2xl border border-border/60 bg-card/60 p-1.5 backdrop-blur-xl">
@@ -209,6 +201,7 @@ function SettingsPage() {
 function BillingCard({ liveDemo }: { liveDemo: boolean }) {
   const meQuery = useMe();
   const me = liveDemo ? null : meQuery.data;
+  const hasTeamPlan = Boolean(me?.organizationId && me?.organizationPlan);
 
   if (liveDemo) {
     return (
@@ -251,7 +244,14 @@ function BillingCard({ liveDemo }: { liveDemo: boolean }) {
             <div className="text-xs uppercase tracking-wide text-muted-foreground">
               Current plan
             </div>
-            <div className="mt-1 text-lg font-semibold text-foreground">{getPlanLabel(me.selectedPlan)}</div>
+            <div className="mt-1 text-lg font-semibold text-foreground">
+              {getPlanLabel(getEffectivePlan(me))}
+            </div>
+            {hasTeamPlan ? (
+              <span className="mt-1 inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                Team plan
+              </span>
+            ) : null}
           </div>
           <span
             className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${statusTone}`}

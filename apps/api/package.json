@@ -7,6 +7,7 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "db:migrate": "node src/db/migrate.js",
+    "user:reset-password": "node src/scripts/reset-user-password.js",
     "migrate:s3-scan-keys": "node src/scripts/migrate-s3-scan-keys-to-structured-layout.js",
     "test": "node --test test/*.test.js",
     "test:integration:api": "RUN_API_INTEGRATION=1 node --test --test-concurrency=1 test/integration/*.integration.test.js",

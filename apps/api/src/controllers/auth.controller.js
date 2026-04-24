@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 const { pool } = require("../db/pool");
 const { getEffectivePlan } = require("../services/access-control.service");
+const { normalizeEmail } = require("../utils/normalizeEmail");
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 200;
@@ -10,6 +11,7 @@ const AUTH_COOKIE_NAME = "auth_token";
 
 function authCookieOptions() {
   const isProduction = process.env.NODE_ENV === "production";
+
   return {
     httpOnly: true,
     secure: isProduction,
@@ -76,7 +78,8 @@ function passwordPolicyError(password) {
 
 async function signup(req, res, next) {
   try {
-    const { email, password } = req.body;
+    const password = req.body?.password;
+    const email = normalizeEmail(req.body?.email);
     if (!email || !password) {
       return res.status(400).json({ error: "email and password are required" });
     }
@@ -86,7 +89,7 @@ async function signup(req, res, next) {
       return res.status(400).json({ error: policyErr });
     }
 
-    const existing = await pool.query("SELECT id FROM users WHERE email = $1 LIMIT 1", [email]);
+    const existing = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [email]);
     if (existing.rows[0]) {
       return res.status(409).json({ error: "Email already exists" });
     }
@@ -116,8 +119,9 @@ async function signup(req, res, next) {
 
 async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
-    const { rows } = await pool.query("SELECT * FROM users WHERE email = $1 LIMIT 1", [email]);
+    const password = req.body?.password;
+    const email = normalizeEmail(req.body?.email);
+    const { rows } = await pool.query("SELECT * FROM users WHERE lower(email) = lower($1) LIMIT 1", [email]);
     const user = rows[0];
 
     if (!user) {
@@ -213,6 +217,17 @@ async function fetchUserProfile(userId) {
       ? String(row.organization).trim()
       : null;
   const effectivePlan = await getEffectivePlan(userId);
+  let organizationId = null;
+  let organizationName = null;
+  let organizationPlan = null;
+  if (effectivePlan.teamId && (effectivePlan.teamRole === "team_owner" || effectivePlan.teamRole === "team_member")) {
+    const teamQ = await pool.query("SELECT id, name FROM teams WHERE id = $1 LIMIT 1", [effectivePlan.teamId]);
+    if (teamQ.rows[0]) {
+      organizationId = teamQ.rows[0].id;
+      organizationName = teamQ.rows[0].name || null;
+      organizationPlan = effectivePlan.planCode;
+    }
+  }
   const subscriptionStatus = subscriptionStatusFromEffectivePlan(effectivePlan);
   const planExpiresAt =
     effectivePlan.planCode === "team"
@@ -229,6 +244,9 @@ async function fetchUserProfile(userId) {
     email: row.email,
     name,
     organization,
+    organizationId,
+    organizationName,
+    organizationPlan,
     plan: row.plan || "free",
     selectedPlan: row.plan || "free",
     plan_selected: Boolean(row.plan_selected),
@@ -255,6 +273,7 @@ async function fetchUserProfile(userId) {
 
 async function getMe(req, res, next) {
   try {
+    console.log("[auth][getMe] cookies", req.cookies || {});
     const profile = await fetchUserProfile(req.user.id);
     if (!profile) {
       return res.status(404).json({ error: "User not found" });

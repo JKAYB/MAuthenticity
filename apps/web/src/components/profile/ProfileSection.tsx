@@ -8,6 +8,8 @@ import { getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
 import { user as demoUser } from "@/lib/mock-data";
 import { displayNameFromEmail, initialsFromDisplayName } from "@/lib/user-display";
 import { cn } from "@/lib/utils";
+import { getPlanLabel } from "@/features/billing/planAccess";
+import { getEffectivePlan } from "@/features/billing/getEffectivePlan";
 
 export type ProfileFields = {
   email: string;
@@ -15,6 +17,8 @@ export type ProfileFields = {
   org: string;
   plan: string;
   initials: string;
+  organizationId: string | null;
+  organizationPlan: string | null;
 };
 
 function formatPlanLabel(plan: string) {
@@ -28,8 +32,10 @@ export function profileFromMe(me: MeResponse): ProfileFields {
     email: me.email,
     storedDisplayName: me.name ?? "",
     org: me.organization ?? "",
-    plan: formatPlanLabel(me.plan),
+    plan: formatPlanLabel(getEffectivePlan(me)),
     initials: initialsFromDisplayName(me.name, me.email),
+    organizationId: me.organizationId ?? null,
+    organizationPlan: me.organizationPlan ?? null,
   };
 }
 
@@ -38,6 +44,8 @@ function ProfileEditor({ liveDemo, profile }: { liveDemo: boolean; profile: Prof
   const [storedDisplayName, setStoredDisplayName] = useState(profile.storedDisplayName);
   const [org, setOrg] = useState(profile.org);
   const [saving, setSaving] = useState(false);
+  const isTeamMember = Boolean(profile.organizationId);
+  const hasTeamPlan = Boolean(profile.organizationPlan);
 
   useEffect(() => {
     setStoredDisplayName(profile.storedDisplayName);
@@ -91,14 +99,23 @@ function ProfileEditor({ liveDemo, profile }: { liveDemo: boolean; profile: Prof
           placeholder={displayNameFromEmail(profile.email)}
         />
         <ProfileInput label="Email" value={profile.email} type="email" readOnly />
-        <ProfileInput
-          label="Organization"
-          value={org}
-          onChange={(e) => setOrg(e.target.value)}
-          readOnly={liveDemo}
-          placeholder="Optional"
-        />
-        <ProfileInput label="Plan" value={profile.plan} readOnly disabled />
+        {isTeamMember && (
+          <ProfileInput
+            label="Team name"
+            value={org}
+            onChange={(e) => setOrg(e.target.value)}
+            readOnly={liveDemo}
+            placeholder="Enter your team name"
+          />
+        )}
+        <div className="space-y-1">
+          <ProfileInput label="Plan" value={getPlanLabel(profile.plan)} readOnly disabled />
+          {hasTeamPlan ? (
+            <span className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+              Team plan
+            </span>
+          ) : null}
+        </div>
       </div>
       <ProfileSaveBar
         primaryDisabled={liveDemo || saving}
@@ -169,6 +186,8 @@ export function ProfileAccountCard() {
         org: demoUser.org,
         plan: demoUser.plan,
         initials: demoUser.initials,
+        organizationId: null,
+        organizationPlan: null,
       };
     }
     if (meQuery.isSuccess && meQuery.data) return profileFromMe(meQuery.data);

@@ -1,4 +1,5 @@
 import type { MeResponse } from "@/lib/api";
+import { getEffectivePlan } from "./getEffectivePlan";
 
 type MaybeMe = MeResponse | null | undefined;
 type PlansMode = "onboarding" | "change";
@@ -24,7 +25,7 @@ export function getPlanLabel(plan?: string | null) {
 
 function selectedPlan(me: MaybeMe): string | null {
   if (!me) return null;
-  return String(me.selectedPlan || me.plan || "").toLowerCase() || null;
+  return String(getEffectivePlan(me) || "").toLowerCase() || null;
 }
 
 export function isFreePlan(me: MaybeMe): boolean {

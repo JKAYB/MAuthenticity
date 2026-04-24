@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { prefetchMe, useLogin, useSignup } from "@/features/auth/hooks";
-import LiquidEther from "./LiquidEtherWithRef";
+import LiquidEther from "../components/LiquidEtherWithRef";
 import BorderGlow from "@/components/BorderGlow";
 import { useTheme } from "@/hooks/use-theme";
 import { useFluidEtherLandingMode } from "@/hooks/use-fluid-ether-enabled";
@@ -180,8 +180,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="mt-3 text-muted-foreground"
             >
-              Run authenticity scans across images, video, audio, and URLs — powered by your
-              Observyx backend.
+              Run authenticity scans across images, video, audio, and URLs — powered by Observyx.
             </motion.p>
           </div>
         </div>

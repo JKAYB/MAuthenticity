@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { MarketingHeader } from "@/components/marketing/MarketingHeader";
-import LiquidEther from "./LiquidEtherWithRef";
+import LiquidEther from "../components/LiquidEtherWithRef";
 import { useFluidEtherLandingMode } from "@/hooks/use-fluid-ether-enabled";
 import {
   LANDING_FLUID_FULL_BASE,
