@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
 const { pool } = require("../db/pool");
 const { normalizeEmail } = require("../utils/normalizeEmail");
+const { sendTeamInviteEmail } = require("../services/email.service");
 const {
   canManageTeam,
   getEffectivePlan,
@@ -28,7 +29,7 @@ function createInviteToken() {
 }
 
 function inviteUrlForToken(rawToken) {
-  const appBase = String(process.env.APP_BASE_URL || "http://localhost:5173").replace(/\/+$/, "");
+  const appBase = String(process.env.WEB_APP_URL || "http://localhost:5173").replace(/\/+$/, "");
   return `${appBase}/accept-invite?token=${encodeURIComponent(rawToken)}`;
 }
 
@@ -244,8 +245,23 @@ async function addTeamMember(req, res, next) {
        LIMIT 1`,
       [teamCheck.effectivePlan.teamId, email],
     );
-    console.log("pending_invite_created");
-    console.log("invite_url", inviteUrlForToken(rawToken));
+    const teamInfoQ = await pool.query("SELECT name FROM teams WHERE id = $1 LIMIT 1", [
+      teamCheck.effectivePlan.teamId,
+    ]);
+    const teamName = teamInfoQ.rows[0]?.name || "MediaAuth Team";
+    try {
+      await sendTeamInviteEmail({
+        to: email,
+        inviteUrl: inviteUrlForToken(rawToken),
+        teamName,
+        invitedByEmail: req.user?.email || "",
+      });
+    } catch (emailError) {
+      return res.status(502).json({
+        error: "Failed to send invitation email",
+        details: emailError instanceof Error ? emailError.message : String(emailError),
+      });
+    }
     return res.status(201).json({
       ok: true,
       status: "invitation_sent",
@@ -378,8 +394,29 @@ async function resendTeamInvite(req, res, next) {
        WHERE id = $1`,
       [inviteId, tokenHash, req.user.id],
     );
-    console.log("pending_invite_created");
-    console.log("invite_url", inviteUrlForToken(rawToken));
+    const inviteInfoQ = await pool.query(
+      `SELECT email, team_id
+       FROM team_member_invites
+       WHERE id = $1
+       LIMIT 1`,
+      [inviteId],
+    );
+    const inviteInfo = inviteInfoQ.rows[0];
+    const teamInfoQ = await pool.query("SELECT name FROM teams WHERE id = $1 LIMIT 1", [invite.team_id]);
+    const teamName = teamInfoQ.rows[0]?.name || "MediaAuth Team";
+    try {
+      await sendTeamInviteEmail({
+        to: inviteInfo?.email || "",
+        inviteUrl: inviteUrlForToken(rawToken),
+        teamName,
+        invitedByEmail: req.user?.email || "",
+      });
+    } catch (emailError) {
+      return res.status(502).json({
+        error: "Failed to send invitation email",
+        details: emailError instanceof Error ? emailError.message : String(emailError),
+      });
+    }
     return res.json({ ok: true, status: "invitation_sent", inviteId });
   } catch (error) {
     return next(error);

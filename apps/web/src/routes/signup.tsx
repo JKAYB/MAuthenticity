@@ -24,10 +24,10 @@ export const Route = createFileRoute("/signup")({
   },
   head: () => ({
     meta: [
-      { title: "Create account — Observyx" },
+      { title: "Create account — MAuthenticity" },
       {
         name: "description",
-        content: "Create your Observyx workspace and start verifying media.",
+        content: "Create your MAuthenticity workspace and start verifying media.",
       },
     ],
   }),

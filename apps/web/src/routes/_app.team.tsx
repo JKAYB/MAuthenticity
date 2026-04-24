@@ -88,7 +88,13 @@ function TeamPage() {
   if (role !== "team_owner") {
     return <div className="text-sm text-muted-foreground">Only team owners can manage members.</div>;
   }
-
+  const statusStyles: Record<string, string> = {
+    pending: "text-warning",
+    accepted: "text-success",
+    declined: "text-destructive",
+    expired: "text-muted-foreground",
+    revoked: "text-muted-foreground",
+  };
   return (
     <div className="mx-auto min-w-0 max-w-full space-y-6">
       <SectionHeader
@@ -225,7 +231,7 @@ function TeamPage() {
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium text-foreground">{inv.email}</div>
                       <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{statusLabel}</span>
+                        <span className={statusStyles[inv.status] || "text-muted-foreground"}>{statusLabel}</span>
                         {inv.expires_at ? (
                           <>
                             <span className="text-border">•</span>

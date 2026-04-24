@@ -34,11 +34,11 @@ function StaticFluidBackdrop() {
 export const Route = createFileRoute("/how-it-works")({
   head: () => ({
     meta: [
-      { title: "How it works — Observyx" },
+      { title: "How it works — MAuthenticity" },
       {
         name: "description",
         content:
-          "From upload to authenticity report: learn how Observyx's multi-layer detection pipeline analyzes media in seconds.",
+          "From upload to authenticity report: learn how MAuthenticity's multi-layer detection pipeline analyzes media in seconds.",
       },
     ],
   }),
@@ -58,7 +58,7 @@ const steps = [
     n: "02",
     icon: Layers,
     title: "Run forensic and model-based checks",
-    desc: "Observyx evaluates visual, audio, and structural signals to detect synthetic generation, tampering patterns, and inconsistencies.",
+    desc: "MAuthenticity evaluates visual, audio, and structural signals to detect synthetic generation, tampering patterns, and inconsistencies.",
   },
   {
     n: "03",
@@ -78,7 +78,7 @@ const trustPoints = [
   {
     icon: Shield,
     title: "Multi-layer detection",
-    desc: "No single-signal shortcut — Observyx combines multiple analysis layers before returning a result.",
+    desc: "No single-signal shortcut — MAuthenticity combines multiple analysis layers before returning a result.",
   },
   {
     icon: Zap,
@@ -201,7 +201,7 @@ function HowItWorks() {
           transition={{ duration: 0.48, delay: 0.04 }}
           className="hero-headline-glow mt-6 font-display text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl md:text-7xl"
         >
-          How <span className="gradient-text-animated">Observyx</span> works
+          How <span className="gradient-text-animated">MAuthenticity</span> works
         </motion.h1>
 
         <motion.p
@@ -210,7 +210,7 @@ function HowItWorks() {
           transition={{ duration: 0.48, delay: 0.1 }}
           className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg"
         >
-          From upload to authenticity report, Observyx analyzes media through a fast multi-layer detection
+          From upload to authenticity report, MAuthenticity analyzes media through a fast multi-layer detection
           pipeline designed to flag AI generation, tampering, and manipulation in seconds.
         </motion.p>
 
@@ -396,13 +396,13 @@ function HowItWorks() {
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 sm:flex-row">
           <Link
             to="/"
-            aria-label="Observyx home"
+            aria-label="MAuthenticity home"
             className="mobile-tap-fix inline-flex w-fit touch-manipulation rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring [-webkit-tap-highlight-color:transparent]"
           >
             <Logo compact />
           </Link>
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Observyx. All rights reserved.
+            © {new Date().getFullYear()} MAuthenticity. All rights reserved.
           </p>
         </div>
       </footer>

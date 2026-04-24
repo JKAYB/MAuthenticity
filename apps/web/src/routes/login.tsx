@@ -294,7 +294,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
                       minLength={isLogin ? undefined : 8}
                       maxLength={isLogin ? undefined : 200}
                       type={showPw ? "text" : "password"}
-                      placeholder=""
+                      placeholder="••••••••"
                       className="auth-input pr-10"
                       autoComplete={isLogin ? "current-password" : "new-password"}
                       value={password}

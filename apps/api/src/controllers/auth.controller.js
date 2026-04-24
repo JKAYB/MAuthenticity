@@ -273,7 +273,6 @@ async function fetchUserProfile(userId) {
 
 async function getMe(req, res, next) {
   try {
-    console.log("[auth][getMe] cookies", req.cookies || {});
     const profile = await fetchUserProfile(req.user.id);
     if (!profile) {
       return res.status(404).json({ error: "User not found" });

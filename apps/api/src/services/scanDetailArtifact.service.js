@@ -6,7 +6,7 @@
  * - RD historically exposed `aggregationResultUrl` / `modelMetadataUrl` as either vendor HTTPS URLs or,
  *   for aggregation, an internal **storage key** string — neither is safe to hand to the browser as `<a href>`.
  * - Worker `persistRdArtifacts` normalizes to `artifactAggregationStorageKey` / `artifactModelMetadataStorageKey`
- *   (both Observyx-owned object keys) before DB write.
+ *   (both MAuthenticity-owned object keys) before DB write.
  * - GET `/scan/:id` clones `result_payload`, computes availability, then **strips** keys/legacy URL fields from JSON.
  * - Bytes are served only via authenticated GET `/scan/:id/artifacts/:type`.
  */
