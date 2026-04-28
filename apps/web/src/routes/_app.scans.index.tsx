@@ -252,26 +252,23 @@ function ScansList() {
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl space-y-4 overflow-x-hidden sm:space-y-6">
-      <SectionHeader
-        eyebrow="History"
-        title="All scans"
-        description={
-          listError
-            ? listError
-            : liveDemo
-              ? "Sample scan list for the live demo — not your account data."
-              : "Search and filter every authenticity report from your MAuthenticity API."
-        }
-        action={
-          <Link
-            to="/scan"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-br from-primary to-accent px-3 text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)]"
-          >
-            <ScanSearch className="h-4 w-4" />
-            New scan
-          </Link>
-        }
-      />
+      <div>
+        <div className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
+          History
+        </div>
+        <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+          All Scans
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {
+            listError
+              ? listError
+              : liveDemo
+                ? "Sample scan list for the live demo — not your account data."
+                : "Search and filter every authenticity report"
+          }
+        </p>
+      </div>
 
       <div className="flex min-w-0 flex-col gap-3">
         <div className="relative min-w-0">
@@ -279,7 +276,7 @@ function ScansList() {
           <input
             value={draftQ}
             onChange={(e) => setDraftQ(e.target.value)}
-            placeholder="Search by filename (updates after you pause typing)"
+            placeholder="Search by filename"
             aria-label="Search scans by filename"
             className="h-10 w-full min-w-0 rounded-lg border border-border bg-input/60 pl-10 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring/40"
           />

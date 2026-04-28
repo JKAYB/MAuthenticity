@@ -295,11 +295,6 @@ function Dashboard() {
         <SectionHeader
           eyebrow="Activity"
           title="Recent scans"
-          description={
-            liveDemo
-              ? "Sample reports for the live demo — not from your API."
-              : "Latest authenticity reports"
-          }
           action={
             <Link to="/scans" className="text-sm font-medium text-primary hover:underline">
               View all →

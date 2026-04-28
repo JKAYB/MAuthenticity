@@ -241,11 +241,11 @@ function ScanDetail() {
 
           {/* Content Section */}
           <div className="flex-1 text-center md:text-left">
-            <h1 className="font-display text-xl font-bold tracking-tight sm:text-4xl">
+            <h1 className="font-display text-lg font-bold tracking-tight leading-snug break-all overflow-hidden sm:text-3xl md:text-4xl">
               {scan.title}
             </h1>
 
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed opacity-90">
+            <p className="mt-1.5 max-w-full text-xs leading-relaxed opacity-90 sm:mt-2 sm:max-w-2xl sm:text-sm">
               {topSummary}
             </p>
 
@@ -264,14 +264,16 @@ function ScanDetail() {
               </div>
             </div>
           </div>
-          <div className="flex self-start items-start justify-end gap-2">
+          <div className="flex shrink-0 self-start items-center justify-end gap-2">
             <button
               type="button"
               aria-label="Share"
-              className="inline-flex size-9 shrink-0 items-center justify-center gap-0 rounded-lg border border-border bg-card/60 text-sm hover:bg-card sm:h-9 sm:w-auto sm:min-w-0 sm:px-3 sm:gap-1.5"
+              title="Share"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card/60 text-sm hover:bg-card sm:w-auto sm:px-3"
             >
               <Share2 className="h-4 w-4 shrink-0" aria-hidden />
             </button>
+
             <button
               type="button"
               aria-label="Export report"
@@ -279,13 +281,13 @@ function ScanDetail() {
               title={canDownloadReports ? "Export report" : "Upgrade required to download reports"}
               onClick={() => {
                 void (async () => {
-                  if (!scan || exportBusy) {
-                    return;
-                  }
+                  if (!scan || exportBusy) return;
+
                   if (!canDownloadReports) {
                     toast.error("Report download requires a paid plan");
                     return;
                   }
+
                   setExportBusy(true);
                   try {
                     const { exportScanReportPdf } = await import("@/lib/export-scan-report-pdf");
@@ -298,7 +300,7 @@ function ScanDetail() {
                   }
                 })();
               }}
-              className="inline-flex size-9 shrink-0 items-center justify-center gap-0 rounded-lg border border-border bg-card/60 text-sm hover:bg-card sm:h-9 sm:w-auto sm:min-w-0 sm:px-3 sm:gap-1.5"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card/60 text-sm hover:bg-card disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-3"
             >
               {exportBusy ? (
                 <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
@@ -369,14 +371,24 @@ function ScanDetail() {
                     {p.verdict}
                   </span>
                 </div>
+                <div className="mt-1 grid grid-cols-1 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2 sm:gap-x-4">
+                  <div>
+                    AI/manipulation signal:{" "}
+                    <span className="font-medium text-foreground">{p.aiScore}%</span>
+                  </div>
 
+                  <div>
+                    Authenticity indication:{" "}
+                    <span className="font-medium text-foreground">{p.authenticScore}%</span>
+                  </div>
+                </div>
+                {/* 
                 <div className="mt-1 text-xs text-muted-foreground">
                   AI/manipulation signal:{" "}
                   <span className="font-medium text-foreground">{p.aiScore}%</span>
-                  {" · "}
                   Authenticity indication:{" "}
                   <span className="font-medium text-foreground">{p.authenticScore}%</span>
-                </div>
+                </div> */}
               </div>
             ))}
           </div>
@@ -390,11 +402,14 @@ function ScanDetail() {
           transition={{ duration: 0.5, delay: 0.05 }}
           className="min-w-0 rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur-xl elevated sm:p-5 lg:col-span-2"
         >
-          <div className="mb-3.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {/* <div className="mb-3.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Media preview
-          </div>
+          </div> */}
 
           <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Media preview
+            </div>
             <div className="min-w-0">
               {aggregated.verdict === "manipulated" ? (
                 <div className="inline-flex items-center gap-1.5 rounded-md bg-destructive/20 px-2.5 py-1.5 text-xs text-destructive ring-1 ring-destructive/30 backdrop-blur">

@@ -31,7 +31,7 @@ Teams need a **repeatable way** to run authenticity / manipulation-oriented chec
 | Auth | HttpOnly cookie auth (`auth_token`) for web sessions, signup/login/logout, `/me` profile and password change; API keys supported with masked key listing and one-time full key on creation. |
 | Scans | Create from upload or URL; statuses `pending` → `processing` → `completed` / `failed`; scan history supports backend `mediaType` filtering (`image`/`video`/`audio`/`document`/`other`). |
 | Detection | **Mock** and **real** providers; **Reality Defender** integration path with normalization contract (`isAiGenerated` nullable for inconclusive outcomes). |
-| Frontend | Vite + React (TanStack Router); dashboard, scan flow, scan detail with authenticated media preview, heatmap/artifact streaming, and report export support. |
+| Frontend | Vite + React (TanStack Router); dashboard, scan flow, scans history, scan detail with authenticated media preview, heatmap/artifact streaming, report export support, and an aggregation-based verdict layer for top-level scan interpretation. |
 | Marketing | Landing, how-it-works, shared marketing header patterns. |
 | Deploy | README references Netlify in CORS allowlist example; **production posture** (hosting, secrets, SLAs) is environment-specific—not fully encoded in-repo. |
 
@@ -61,6 +61,7 @@ High-level flow (queue mode; direct mode collapses steps 2–3 into the API proc
 3. **Worker** (or API in direct mode) loads the scan row, **resolves media** to a local path or temp file (S3 download when applicable), runs **`runDetection`**:
    - Resolves **active provider** (`DETECTION_PROVIDER`), calls **`provider.detect`**, then **`normalizeProviderResult`** and **`buildResultPayload`**.
 4. **Persistence**: `completed` with confidence, `is_ai_generated` (nullable), summary, **`result_payload`**, **`detection_provider`**; or `failed` with **`error_message`**.
+5. **Web aggregation & presentation**: the SPA computes a final user-facing result via **`aggregateScanResult(scan)`** (apps/web), combining normalized provider outputs into a unified verdict/confidence/reasons while keeping provider-specific tabs for deep inspection.
 
 **URL-sourced scans** follow the same orchestration after the row represents the URL source (see scan service / controller implementation).
 
@@ -104,7 +105,11 @@ Concrete capabilities already present in the codebase:
 - **History UX/API alignment**: normalized media-type filtering (`image`, `video`, `audio`, `document`, `other`) is enforced server-side and exposed to frontend filters.
 - **Operational tooling**: health/ready endpoints, **`dev:check`** script, Docker Compose for Postgres/Redis/MinIO, integration tests for API/worker, storage check CLIs, internal retry/reset-stuck style operations (see OPERATIONS).
 - **Frontend**: TanStack Router structure, React Query patterns for scans, **scan detail** with **media preview** component fetching **`/scan/:id/media`** with auth; dashboard analytics hooks to **`/scan/analytics/*`** endpoints.
+- **Aggregation layer shipped**: scan detail and scan history now consume a shared adapter (`aggregateScanResult`) for consistent top-level verdict/confidence rendering across pages.
+- **Provider-vs-summary separation**: top-level decisioning is aggregated, while provider tabs remain technical drill-down surfaces (signals, metadata, insights, artifacts, timeline, raw payload).
+- **Score-conversion hardening**: provider-specific conversions avoid mixed-scale mistakes (probability vs percentage), reducing false `100%` display artifacts in Reality Defender-derived model views.
 - **Frontend robustness work**: login/auth shell and LiquidEther integration are now strict-TypeScript compatible; `three` typings are included in web dev dependencies.
+- **UI system polish**: shared Select components now rely on theme tokens for dark/light consistency; app layout updates reduce unnecessary sidebar animation replay on search-param updates.
 - **Performance / cost-minded choices**: optional **direct** execution; **LiquidEther** and marketing pages tuned for scroll/LCP in web (separate from API); worker **concurrency** and **rate limiter** hooks via env.
 - **Documentation**: README + OPERATIONS for operators; JSDoc contracts for provider input/output.
 
@@ -140,8 +145,8 @@ Roadmap items below are **suggestions aligned with the current architecture**, n
 
 - **Additional detection providers** behind the same `getProvider` / `normalizeProviderResult` pattern.
 - **Provider normalization layer** enhancements (versioned payloads, richer error codes surfaced to UI).
-- **Aggregate verdict engine** when multiple providers run (weighted voting, conflict rules)—schema/API may need extension beyond single `detection_provider` field.
-- **Result explanation UI**: surface `result_payload.processors[…]` in human-readable, trust-preserving copy.
+- **Aggregate verdict calibration iteration**: tune provider weighting and confidence calibration over production data while preserving transparent explanations.
+- **Result explanation expansion**: extend the current aggregated reasons/signals into richer evidence UX without mixing provider drill-down and end-user summary contexts.
 - **Mobile polish** on marketing and auth flows (ongoing).
 - **Retry / error visibility** in product UI (not only internal ops).
 - **Admin/internal tools**: expand filters, export, bulk actions (carefully gated).
@@ -192,8 +197,8 @@ Ordered by **impact × practicality** for a small team (re-evaluate quarterly):
 
 1. **Harden production defaults**: queue mode + worker for anything beyond trivial traffic; document timeouts and max upload sizes.
 2. **User-visible errors & retries**: map provider failures to actionable UI + safe retry (idempotency, duplicate job handling).
-3. **Second provider (pilot)** behind same interface to prove multi-vendor architecture before building aggregation.
-4. **Explainability pass**: scan detail UI for `result_payload` (collapsible technical detail + plain-language summary).
+3. **Second provider (pilot)** behind same interface to broaden real-world multi-provider coverage and validate aggregation quality.
+4. **Explainability pass**: deepen aggregated explanation UX and alignment with provider evidence in scan detail.
 5. **Observability baseline**: structured logs + one dashboard (latency, failure rate, queue depth).
 6. **Security review**: media access authorization on every path, cookie/session handling, CSRF planning, and CORS lockdown for production origins only.
 7. **Automated integration tests** for URL scans and S3 paths if not already as broad as upload-local.

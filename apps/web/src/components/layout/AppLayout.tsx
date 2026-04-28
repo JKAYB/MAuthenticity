@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   LayoutDashboard,
@@ -12,7 +12,7 @@ import {
   LogOut,
   Sparkles,
 } from "lucide-react";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { memo, useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/Logo";
 import { NotificationBell } from "@/components/layout/NotificationBell";
@@ -30,16 +30,11 @@ const nav = [
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
-function SidebarContent({
-  pathname,
-  logoTo,
-  logoAriaLabel,
-  onMobileNavClick,
-  onLogout,
-  profile,
-  showTeamNav,
-  showUpgrade,
-}: {
+const teamNavItem = { to: "/team" as const, label: "Team", icon: Users };
+/** Stable reference: base nav + team (caller picks base vs full). */
+const navWithTeam = [...nav, teamNavItem] as const;
+
+type SidebarContentProps = {
   pathname: string;
   logoTo: "/dashboard" | "/";
   logoAriaLabel: string;
@@ -48,8 +43,19 @@ function SidebarContent({
   profile: { name: string; email: string; initials: string } | null;
   showTeamNav: boolean;
   showUpgrade: boolean;
-}) {
-  const navItems = showTeamNav ? [...nav, { to: "/team", label: "Team", icon: Users }] : nav;
+};
+
+const SidebarContent = memo(function SidebarContent({
+  pathname,
+  logoTo,
+  logoAriaLabel,
+  onMobileNavClick,
+  onLogout,
+  profile,
+  showTeamNav,
+  showUpgrade,
+}: SidebarContentProps) {
+  const navItems = showTeamNav ? navWithTeam : nav;
   return (
     <div className="flex h-full flex-col select-none lg:select-auto">
       <div className="border-b border-sidebar-border/50 px-3 pb-3 pt-4">
@@ -68,7 +74,6 @@ function SidebarContent({
           Workspace
         </div>
         {navItems.map((item) => {
-          // Exact match or nested route; `/scans` must not match prefix `/scan`.
           const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
           const Icon = item.icon;
           return (
@@ -77,24 +82,26 @@ function SidebarContent({
               to={item.to}
               onClick={onMobileNavClick}
               className={cn(
-                "group relative flex touch-manipulation items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all [-webkit-tap-highlight-color:transparent]",
+                "group relative flex touch-manipulation items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors [-webkit-tap-highlight-color:transparent]",
                 active
                   ? "text-foreground"
                   : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
               )}
             >
-              {active && (
-                <motion.span
-                  layoutId="sidebar-active"
-                  className="absolute inset-0 rounded-lg bg-gradient-to-r from-primary/15 to-accent/10 ring-1 ring-inset ring-primary/30"
-                  transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                />
-              )}
+              <span
+                aria-hidden
+                className={cn(
+                  "pointer-events-none absolute inset-0 rounded-lg transition-[opacity,box-shadow] duration-200 ease-out",
+                  active
+                    ? "opacity-100 bg-gradient-to-r from-primary/15 to-accent/10 ring-1 ring-inset ring-primary/30"
+                    : "opacity-0",
+                )}
+              />
               <Icon className="relative h-4 w-4 shrink-0" />
               <span className="relative">{item.label}</span>
-              {active && (
+              {active ? (
                 <span className="relative ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_10px_var(--primary)]" />
-              )}
+              ) : null}
             </Link>
           );
         })}
@@ -152,19 +159,48 @@ function SidebarContent({
       </div>
     </div>
   );
+}, propsAreSidebarEqual);
+
+function propsAreSidebarEqual(prev: SidebarContentProps, next: SidebarContentProps): boolean {
+  return (
+    prev.pathname === next.pathname &&
+    prev.logoTo === next.logoTo &&
+    prev.logoAriaLabel === next.logoAriaLabel &&
+    prev.showTeamNav === next.showTeamNav &&
+    prev.showUpgrade === next.showUpgrade &&
+    prev.onMobileNavClick === next.onMobileNavClick &&
+    prev.onLogout === next.onLogout &&
+    prev.profile?.email === next.profile?.email &&
+    prev.profile?.name === next.profile?.name &&
+    prev.profile?.initials === next.profile?.initials
+  );
 }
 
 export function AppLayout() {
-  const location = useLocation();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const isLoading = useRouterState({ select: (s) => s.isLoading });
   const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
   const meQuery = useMe();
+  const logout = useLogout();
   const isAuthenticated = !liveDemo && meQuery.isSuccess;
   const logoTo = isAuthenticated ? "/dashboard" : "/";
   const logoAriaLabel = isAuthenticated ? "Go to dashboard" : "MAuthenticity home";
-  const logout = useLogout();
+
+  const closeMobileMenu = useCallback(() => {
+    setMobileOpen(false);
+  }, []);
+
+  const onLogout = useCallback(async () => {
+    disableLiveDemo();
+    await logout();
+  }, [logout]);
+
+  const onLogoutMobile = useCallback(async () => {
+    setMobileOpen(false);
+    await onLogout();
+  }, [onLogout]);
 
   const profile = useMemo(() => {
     if (liveDemo) {
@@ -188,7 +224,7 @@ export function AppLayout() {
   const showTeamNav = !liveDemo && canManageTeam(me);
   const showUpgrade = !liveDemo && shouldShowUpgradeCard(me);
 
-  const exitLiveDemo = () => {
+  const exitLiveDemo = useCallback(() => {
     disableLiveDemo();
     setMobileOpen(false);
     if (!isAuthenticated) {
@@ -196,31 +232,26 @@ export function AppLayout() {
       return;
     }
     navigate({ to: "/dashboard" });
-  };
-
-  const onLogout = async () => {
-    disableLiveDemo();
-    await logout();
-  };
+  }, [navigate, isAuthenticated]);
 
   return (
     <div className="relative min-h-screen">
-      {/* Top progress bar */}
       <AnimatePresence>
-        {isLoading && (
+        {isLoading ? (
           <motion.div
-            initial={{ opacity: 0, scaleX: 0 }}
+            key="router-loading-bar"
+            initial={false}
             animate={{ opacity: 1, scaleX: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left bg-gradient-to-r from-primary via-accent to-primary"
           />
-        )}
+        ) : null}
       </AnimatePresence>
 
-      {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-sidebar-border bg-sidebar/70 backdrop-blur-xl lg:block">
         <SidebarContent
-          pathname={location.pathname}
+          pathname={pathname}
           logoTo={logoTo}
           logoAriaLabel={logoAriaLabel}
           profile={profile}
@@ -230,18 +261,20 @@ export function AppLayout() {
         />
       </aside>
 
-      {/* Mobile sidebar */}
       <AnimatePresence>
-        {mobileOpen && (
+        {mobileOpen ? (
           <>
             <motion.div
+              key="mobile-sidebar-backdrop"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm lg:hidden"
-              onClick={() => setMobileOpen(false)}
+              onClick={closeMobileMenu}
             />
             <motion.aside
+              key="mobile-sidebar-panel"
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
@@ -249,25 +282,22 @@ export function AppLayout() {
               className="fixed inset-y-0 left-0 z-50 w-72 border-r border-sidebar-border bg-sidebar lg:hidden"
             >
               <SidebarContent
-                pathname={location.pathname}
+                pathname={pathname}
                 logoTo={logoTo}
                 logoAriaLabel={logoAriaLabel}
                 profile={profile}
                 showTeamNav={showTeamNav}
                 showUpgrade={showUpgrade}
-                onMobileNavClick={() => setMobileOpen(false)}
-                onLogout={() => {
-                  setMobileOpen(false);
-                  void onLogout();
-                }}
+                onMobileNavClick={closeMobileMenu}
+                onLogout={onLogoutMobile}
               />
             </motion.aside>
           </>
-        )}
+        ) : null}
       </AnimatePresence>
 
       <div className="lg:pl-64">
-        {liveDemo && (
+        {liveDemo ? (
           <div className="sticky top-0 z-30 border-b border-primary/30 bg-gradient-to-r from-primary/15 to-accent/10 px-4 py-2 text-center text-xs sm:text-sm">
             <span className="text-muted-foreground">You’re viewing a </span>
             <span className="font-semibold text-foreground">live demo</span>
@@ -280,8 +310,7 @@ export function AppLayout() {
               Exit demo
             </button>
           </div>
-        )}
-        {/* Topbar */}
+        ) : null}
         <header className="sticky top-0 z-20 border-b border-border/60 bg-background/70 backdrop-blur-xl">
           <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
             <button
@@ -308,21 +337,20 @@ export function AppLayout() {
           </div>
         </header>
 
-        <main className="relative px-4 py-6 sm:px-6 lg:px-8 overflow-x-hidden">
+        <main className="relative overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
           <Outlet />
         </main>
       </div>
 
-      {/* Mobile menu close */}
-      {mobileOpen && (
+      {mobileOpen ? (
         <button
           className="fixed right-4 top-3 z-[60] rounded-md bg-card p-2 text-foreground shadow lg:hidden"
-          onClick={() => setMobileOpen(false)}
+          onClick={closeMobileMenu}
           aria-label="Close menu"
         >
           <X className="h-5 w-5" />
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

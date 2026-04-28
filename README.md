@@ -91,6 +91,17 @@ Queue name: **`scan-jobs`**. API and worker **must** share the same **`REDIS_URL
 
 ---
 
+## Recent product updates (web)
+
+- **Aggregated verdict layer:** scan result rendering now uses a dedicated adapter (`apps/web/src/features/scans/adapters/aggregateScanResult.ts`) that combines provider outputs into a single top-level verdict, confidence, agreement signal, reasons, and cleaned top signals.
+- **Provider-aware normalization:** Hive and Reality Defender inputs are normalized with provider-specific score conversion rules (probability vs already-percent fields), noise filtering, model/label mapping, and safer fallback handling.
+- **Scan detail UX split:** top card now reflects the **aggregated** decision (title/summary/confidence/reasons), while provider tabs remain unchanged for advanced inspection (metadata, provider signals, model insights, heatmaps, artifacts, timeline, raw output).
+- **Scans history alignment:** list rows now display status/confidence derived from the same aggregation adapter for consistency between history and detail views.
+- **Theme consistency:** shared Select primitives were updated to use app theme tokens for trigger/content/item states across light and dark mode.
+- **Layout stability:** app shell/sidebar behavior was tightened to reduce unnecessary nav animation replays on query-param-only page updates (e.g., scan history filter/pagination changes).
+
+---
+
 ## Provider modes
 
 | Mode | Env | Notes |
