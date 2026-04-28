@@ -192,7 +192,16 @@ function ScanDetail() {
         : aggregated.verdict === "suspicious"
           ? "suspicious"
           : "pending";
-  const isInconclusive = aggregated.verdict === "inconclusive";
+  const hasProviders = providerTabs.length > 0;
+  const allProvidersFailed =
+    hasProviders && providerTabs.every((provider) => provider.status === "failed");
+  const hasUsableSignals =
+    aggregated.providerFindings.length > 0 ||
+    aggregated.topSignals.length > 0 ||
+    providerSignalGroups.some((group) => group.signals.length > 0);
+  const isInconclusive =
+    aggregated.verdict === "inconclusive" &&
+    (!hasProviders || allProvidersFailed || !hasUsableSignals);
   const topSummary = isInconclusive
     ? "We could not verify this media due to insufficient detection data."
     : aggregated.summary;

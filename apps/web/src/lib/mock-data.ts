@@ -121,6 +121,37 @@ export const scans: Scan[] = [
       { time: "00:12", event: "Manipulation detected at 00:14–00:21" },
       { time: "00:14", event: "Report generated" },
     ],
+    primaryProvider: "reality_defender",
+    providerExecution: [
+      { id: "reality_defender", name: "Reality Defender", status: "completed" },
+      { id: "hive", name: "Hive", status: "completed" },
+    ],
+    resultPayload: {
+      primaryProvider: "reality_defender",
+      processors: {
+        reality_defender: {
+          ensemble: { normalizedScore: 92 },
+          modelInsights: [
+            { id: "rd-img-ensemble", normalizedScore: 92, status: "DONE" },
+            { id: "rd-context-img", normalizedScore: 86, status: "DONE" },
+          ],
+        },
+        hive: {
+          upstream: {
+            output: [
+              {
+                classes: [
+                  { class: "ai_generated", value: 0.9 },
+                  { class: "not_ai_generated", value: 0.08 },
+                  { class: "midjourney", value: 0.74 },
+                  { class: "none", value: 0.01 },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    },
   },
   {
     id: "scn_2c91be",
@@ -146,6 +177,36 @@ export const scans: Scan[] = [
       { time: "00:02", event: "Pixel forensics complete" },
       { time: "00:04", event: "Verdict: authentic" },
     ],
+    primaryProvider: "reality_defender",
+    providerExecution: [
+      { id: "reality_defender", name: "Reality Defender", status: "completed" },
+      { id: "hive", name: "Hive", status: "completed" },
+    ],
+    resultPayload: {
+      primaryProvider: "reality_defender",
+      processors: {
+        reality_defender: {
+          ensemble: { normalizedScore: 6 },
+          modelInsights: [
+            { id: "rd-img-ensemble", normalizedScore: 6, status: "DONE" },
+            { id: "rd-context-img", normalizedScore: 8, status: "DONE" },
+          ],
+        },
+        hive: {
+          upstream: {
+            output: [
+              {
+                classes: [
+                  { class: "ai_generated", value: 0.04 },
+                  { class: "not_ai_generated", value: 0.94 },
+                  { class: "none", value: 0.45 },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    },
   },
   {
     id: "scn_4d77a0",
@@ -168,6 +229,23 @@ export const scans: Scan[] = [
       { time: "00:07", event: "Spectrogram generated" },
       { time: "00:11", event: "Anomalies in 04:12–05:30" },
     ],
+    primaryProvider: "reality_defender",
+    providerExecution: [
+      { id: "reality_defender", name: "Reality Defender", status: "completed" },
+      { id: "hive", name: "Hive", status: "failed" },
+    ],
+    resultPayload: {
+      primaryProvider: "reality_defender",
+      processors: {
+        reality_defender: {
+          ensemble: { normalizedScore: 64 },
+          modelInsights: [
+            { id: "rd-audio-ensemble", normalizedScore: 64, status: "DONE" },
+            { id: "rd-context-audio", normalizedScore: 58, status: "DONE" },
+          ],
+        },
+      },
+    },
   },
   {
     id: "scn_9a01c7",
@@ -188,6 +266,26 @@ export const scans: Scan[] = [
       { time: "00:00", event: "Image received" },
       { time: "00:01", event: "Verdict: authentic" },
     ],
+    primaryProvider: "hive",
+    providerExecution: [{ id: "hive", name: "Hive", status: "completed" }],
+    resultPayload: {
+      primaryProvider: "hive",
+      processors: {
+        hive: {
+          upstream: {
+            output: [
+              {
+                classes: [
+                  { class: "ai_generated", value: 0.06 },
+                  { class: "not_ai_generated", value: 0.92 },
+                  { class: "other_image_generators", value: 0.012 },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    },
   },
   {
     id: "scn_5e22fd",
@@ -220,6 +318,36 @@ export const scans: Scan[] = [
       { time: "00:00", event: "Scan started" },
       { time: "00:08", event: "Cloned voice signature detected" },
     ],
+    primaryProvider: "reality_defender",
+    providerExecution: [
+      { id: "reality_defender", name: "Reality Defender", status: "completed" },
+      { id: "hive", name: "Hive", status: "completed" },
+    ],
+    resultPayload: {
+      primaryProvider: "reality_defender",
+      processors: {
+        reality_defender: {
+          ensemble: { normalizedScore: 84 },
+          modelInsights: [
+            { id: "rd-audio-ensemble", normalizedScore: 84, status: "DONE" },
+            { id: "rd-context-audio", normalizedScore: 72, status: "DONE" },
+          ],
+        },
+        hive: {
+          upstream: {
+            output: [
+              {
+                classes: [
+                  { class: "ai_generated", value: 0.81 },
+                  { class: "not_ai_generated", value: 0.16 },
+                  { class: "ai_generated_audio", value: 0.79 },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    },
   },
   {
     id: "scn_failed_demo",
