@@ -25,6 +25,20 @@ function setAuthCookie(res, token) {
   res.cookie(AUTH_COOKIE_NAME, token, authCookieOptions());
 }
 
+function createAuthToken(user) {
+  return jwt.sign(
+    { sub: user.id, email: user.email },
+    process.env.JWT_SECRET || "change-me",
+    { expiresIn: "1d" }
+  );
+}
+
+function issueAuthSession(res, user) {
+  const token = createAuthToken(user);
+  setAuthCookie(res, token);
+  return token;
+}
+
 function clearAuthCookie(res) {
   const opts = authCookieOptions();
   res.clearCookie(AUTH_COOKIE_NAME, {
@@ -102,12 +116,7 @@ async function signup(req, res, next) {
       [userId, email, passwordHash],
     );
 
-    const token = jwt.sign(
-      { sub: userId, email },
-      process.env.JWT_SECRET || "change-me",
-      { expiresIn: "1d" }
-    );
-    setAuthCookie(res, token);
+    issueAuthSession(res, { id: userId, email });
     return res.status(201).json({ ok: true });
   } catch (error) {
     if (error && error.code === "23505") {
@@ -133,13 +142,7 @@ async function login(req, res, next) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const token = jwt.sign(
-      { sub: user.id, email: user.email },
-      process.env.JWT_SECRET || "change-me",
-      { expiresIn: "1d" }
-    );
-
-    setAuthCookie(res, token);
+    issueAuthSession(res, { id: user.id, email: user.email });
     return res.json({ ok: true });
   } catch (error) {
     return next(error);
@@ -370,4 +373,5 @@ module.exports = {
   getMe,
   updateMe,
   changePassword,
+  issueAuthSession,
 };

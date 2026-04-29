@@ -11,13 +11,20 @@ const { internalOpsMiddleware } = require("./middleware/internalOps.middleware")
 const { privateCacheNoStore } = require("./middleware/privateCache.middleware");
 const { errorHandler, notFoundHandler } = require("./middleware/error.middleware");
 const { getScanExecutionMode } = require("./config/scanExecution");
+const { configurePassport, passport } = require("./config/passport");
 
 function createApp() {
   const app = express();
-  const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173,http://localhost:5174,https://mauthenticity.netlify.app")
+  const allowedOrigins = (
+    process.env.CORS_ORIGIN || "http://localhost:5173,http://localhost:5174,https://mauthenticity.netlify.app"
+  )
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
+  const webAppUrl = String(process.env.WEB_APP_URL || "").trim();
+  if (webAppUrl && !allowedOrigins.includes(webAppUrl)) {
+    allowedOrigins.push(webAppUrl);
+  }
   const loopbackOriginRe = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i;
 
   app.use(
@@ -35,6 +42,8 @@ function createApp() {
   // Cookie auth is enabled; add CSRF protection middleware here before mutating routes if/when needed.
   app.use(cookieParser());
   app.use(express.json());
+  configurePassport();
+  app.use(passport.initialize());
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });

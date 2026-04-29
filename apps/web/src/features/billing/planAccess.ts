@@ -68,11 +68,18 @@ export function canStartScan(me: MaybeMe): boolean {
   return me.scansUsed < limit;
 }
 
+/** True until the user has completed plan selection (onboarding gate). */
+function planOnboardingIncomplete(me: MaybeMe): boolean {
+  return !Boolean(me?.planSelected ?? me?.plan_selected);
+}
+
 export function getPlanCardState(me: MaybeMe, planCode: PlanCode, mode: PlansMode) {
   const currentPlan = selectedPlan(me);
   const current = currentPlan === planCode;
   const teamMemberManaged = me?.teamRole === "member";
   const selectingFreeNotAllowed = planCode === "free" && Boolean(me?.hasEverHadPaidPlan);
+  const skipCurrentLock =
+    mode === "onboarding" && planOnboardingIncomplete(me);
 
   if (teamMemberManaged) {
     return {
@@ -84,7 +91,7 @@ export function getPlanCardState(me: MaybeMe, planCode: PlanCode, mode: PlansMod
       reason: "team_member_managed" as const,
     };
   }
-  if (current) {
+  if (current && !skipCurrentLock) {
     return {
       current: true,
       highlighted: true,
