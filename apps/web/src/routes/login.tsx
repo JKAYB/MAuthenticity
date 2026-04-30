@@ -25,13 +25,21 @@ import {
 } from "@/lib/landing-fluid-ether-props";
 import { apiBase } from "@/lib/api";
 
+function startGithubOAuth() {
+  window.location.assign(`${apiBase()}/auth/github`);
+}
+
 function startGoogleOAuth() {
   window.location.assign(`${apiBase()}/auth/google`);
 }
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { redirect?: string; auth?: string; provider?: string } => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+    auth: typeof search.auth === "string" ? search.auth : undefined,
+    provider: typeof search.provider === "string" ? search.provider : undefined,
   }),
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
@@ -105,6 +113,29 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
       return typeof q?.redirect === "string" ? q.redirect : undefined;
     },
   });
+  const authFailure = useRouterState({
+    select: (s) => {
+      const q = s.location.search as { auth?: string; provider?: string };
+      return {
+        auth: typeof q?.auth === "string" ? q.auth : undefined,
+        provider: typeof q?.provider === "string" ? q.provider : undefined,
+      };
+    },
+  });
+  const [oauthFailureShown, setOauthFailureShown] = useState(false);
+
+  useEffect(() => {
+    if (oauthFailureShown) return;
+    if (authFailure.auth !== "failed") return;
+    const providerLabel =
+      authFailure.provider === "google"
+        ? "Google"
+        : authFailure.provider === "github"
+          ? "GitHub"
+          : "OAuth";
+    toast.error(`Login failed with ${providerLabel}. Please try again.`);
+    setOauthFailureShown(true);
+  }, [authFailure.auth, authFailure.provider, oauthFailureShown]);
 
   const busy = loginMutation.isPending || signupMutation.isPending;
 
@@ -240,7 +271,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
                 <button
                   type="button"
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card/60 text-sm font-medium backdrop-blur transition hover:bg-card"
-                  onClick={() => toast.message("OAuth is not wired to the API yet.")}
+                  onClick={() => startGithubOAuth()}
                 >
                   <Github className="h-4 w-4" /> GitHub
                 </button>

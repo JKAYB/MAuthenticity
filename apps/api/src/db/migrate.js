@@ -20,6 +20,7 @@ async function runMigrations() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS organization TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id TEXT`);
   await pool.query(
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'`
   );
@@ -34,6 +35,11 @@ async function runMigrations() {
     CREATE UNIQUE INDEX IF NOT EXISTS users_google_id_unique
     ON users (google_id)
     WHERE google_id IS NOT NULL
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS users_github_id_unique
+    ON users (github_id)
+    WHERE github_id IS NOT NULL
   `);
   await pool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique

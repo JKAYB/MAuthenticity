@@ -21,6 +21,14 @@ function isGoogleConfigured() {
   );
 }
 
+function isGithubConfigured() {
+  return Boolean(
+    process.env.GITHUB_CLIENT_ID &&
+      process.env.GITHUB_CLIENT_SECRET &&
+      process.env.GITHUB_CALLBACK_URL
+  );
+}
+
 router.post("/signup", signup);
 router.post("/login", login);
 router.post("/logout", logout);
@@ -37,13 +45,38 @@ router.get("/google", (req, res, next) => {
   );
 });
 router.get("/google/callback", (req, res, next) => {
+  const webAppUrl = process.env.WEB_APP_URL || "http://localhost:5173";
   if (!isGoogleConfigured()) {
-    return res.redirect(`${process.env.WEB_APP_URL || "http://localhost:5173"}/login?auth=failed`);
+    console.error("[OAuth] Google callback failed: provider not configured");
+    return res.redirect(`${webAppUrl}/login?auth=failed&provider=google`);
   }
   return passport.authenticate("google", { session: false }, (error, user) => {
-    const webAppUrl = process.env.WEB_APP_URL || "http://localhost:5173";
     if (error || !user || !user.email) {
-      return res.redirect(`${webAppUrl}/login?auth=failed`);
+      const reason = error ? String(error.message || error) : !user ? "no_user" : "missing_email";
+      console.error(`[OAuth] Google callback failed: ${reason}`);
+      return res.redirect(`${webAppUrl}/login?auth=failed&provider=google`);
+    }
+    issueAuthSession(res, user);
+    return res.redirect(`${webAppUrl}/dashboard`);
+  })(req, res, next);
+});
+router.get("/github", (req, res, next) => {
+  if (!isGithubConfigured()) {
+    return res.status(503).json({ error: "GitHub OAuth is not configured." });
+  }
+  return passport.authenticate("github", { scope: ["user:email"], session: false })(req, res, next);
+});
+router.get("/github/callback", (req, res, next) => {
+  const webAppUrl = process.env.WEB_APP_URL || "http://localhost:5173";
+  if (!isGithubConfigured()) {
+    console.error("[OAuth] GitHub callback failed: provider not configured");
+    return res.redirect(`${webAppUrl}/login?auth=failed&provider=github`);
+  }
+  return passport.authenticate("github", { session: false }, (error, user) => {
+    if (error || !user || !user.email) {
+      const reason = error ? String(error.message || error) : !user ? "no_user" : "missing_email";
+      console.error(`[OAuth] GitHub callback failed: ${reason}`);
+      return res.redirect(`${webAppUrl}/login?auth=failed&provider=github`);
     }
     issueAuthSession(res, user);
     return res.redirect(`${webAppUrl}/dashboard`);
