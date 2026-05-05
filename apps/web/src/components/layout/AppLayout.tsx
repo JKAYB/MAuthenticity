@@ -26,7 +26,7 @@ import { canManageTeam, shouldShowUpgradeCard } from "@/features/billing/planAcc
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/scan", label: "New scan", icon: ScanSearch },
-  { to: "/scans", label: "History", icon: History },
+  { to: "/scans", label: "All Scans", icon: History },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 

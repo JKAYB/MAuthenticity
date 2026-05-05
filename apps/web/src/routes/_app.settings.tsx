@@ -78,9 +78,9 @@ function SettingsPage() {
             ? "Sample account data for the live demo."
             : "Manage your profile, security, and notification preferences."}/> */}
       <div>
-        <div className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
+        {/* <div className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
           Account
-        </div>
+        </div> */}
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
           Settings
         </h1>

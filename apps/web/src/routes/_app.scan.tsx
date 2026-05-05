@@ -158,9 +158,9 @@ function ScanPage() {
         </div>
       ) : null}
       <div>
-        <div className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
+        {/* <div className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
           Authenticity engine
-        </div>
+        </div> */}
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
           Run a new scan
         </h1>
@@ -223,7 +223,80 @@ function ScanPage() {
               transition={{ duration: 0.25 }}
             >
               <div className="mb-5 space-y-2">
-                <div className="text-xs font-medium text-muted-foreground">Providers</div>
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Select providers
+                  </div>
+
+                  <p className="mt-1 text-[11px] text-muted-foreground/70">
+                    Choose one or more detection engines
+                  </p>
+                </div>
+
+                {providersQuery.isPending ? (
+                  <div className="text-xs text-muted-foreground">
+                    Loading providers…
+                  </div>
+                ) : providersQuery.isError ? (
+                  <div className="text-xs text-destructive">
+                    Failed to load providers
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {providers.map((provider) => {
+                      const checked = selectedProviders.includes(provider.id);
+                      const disabled = !provider.enabled || liveDemo;
+
+                      return (
+                        <button
+                          key={provider.id}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => {
+                            setSelectedProviders((prev) => {
+                              if (prev.includes(provider.id)) {
+                                if (prev.length === 1) return prev;
+
+                                return prev.filter((id) => id !== provider.id);
+                              }
+
+                              return [...prev, provider.id];
+                            });
+                          }}
+                          className={cn(
+                            "group flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all",
+                            checked
+                              ? "border-primary/60 bg-primary/10 text-foreground shadow-[0_0_18px_rgba(34,211,238,0.10)]"
+                              : "border-border bg-card/40 text-muted-foreground hover:border-primary/40 hover:bg-card/70",
+                            disabled && "cursor-not-allowed opacity-50"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "h-2 w-2 rounded-full transition-colors",
+                              checked
+                                ? "bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]"
+                                : "bg-muted"
+                            )}
+                          />
+
+                          <span className="whitespace-nowrap">
+                            {provider.name}
+                          </span>
+
+                          {checked && (
+                            <span className="text-[10px] text-primary">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {/* <div className="mb-5 space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Select Providers</div>
                 {providersQuery.isPending ? (
                   <div className="text-xs text-muted-foreground">Loading providers…</div>
                 ) : providersQuery.isError ? (
@@ -257,7 +330,7 @@ function ScanPage() {
                     })}
                   </div>
                 )}
-              </div>
+              </div> */}
 
               {tab === "upload" ? (
                 <>
