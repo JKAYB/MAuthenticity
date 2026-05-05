@@ -253,9 +253,9 @@ function ScansList() {
   return (
     <div className="mx-auto w-full min-w-0 max-w-7xl space-y-4 overflow-x-hidden sm:space-y-6">
       <div>
-        <div className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
+        {/* <div className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
           History
-        </div>
+        </div> */}
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
           All Scans
         </h1>
