@@ -5,6 +5,11 @@ const { normalizeEmail } = require("../utils/normalizeEmail");
 const { sendTeamInviteEmail } = require("../services/email.service");
 const {
   canManageTeam,
+  canManageAdmins,
+  canManageMembers,
+  isOwner,
+  normalizeTeamRole,
+  TEAM_ROLE_MEMBER,
   getEffectivePlan,
   PLAN_CODE_FREE,
   PLAN_CODE_INDIVIDUAL_MONTHLY,
@@ -127,7 +132,7 @@ async function selectPlan(req, res, next) {
     }
 
     const effectiveBefore = await getEffectivePlan(req.user.id);
-    if (effectiveBefore.teamRole === "team_member") {
+    if (effectiveBefore.teamRole && !isOwner(effectiveBefore.teamRole)) {
       return res.status(403).json({ error: "Plan is managed by your team owner" });
     }
 
@@ -229,16 +234,116 @@ async function getMyTeam(req, res, next) {
        ORDER BY created_at DESC`,
       [effectivePlan.teamId],
     );
-    const activeEmails = new Set(membersQ.rows.map((m) => normalizeEmail(m.email)));
+    const ownerUserId = teamQ.rows[0]?.owner_user_id || null;
+    const ownerQ = ownerUserId
+      ? await pool.query(
+          "SELECT id, email, must_change_password FROM users WHERE id = $1 LIMIT 1",
+          [ownerUserId]
+        )
+      : { rows: [] };
+    const ownerRow = ownerQ.rows[0] || null;
+    const membersWithOwnerRole = membersQ.rows.map((member) => ({
+      ...member,
+      role: member.id === ownerUserId ? "owner" : publicRoleLabel(member.role),
+    }));
+    const ownerAlreadyPresent = ownerUserId
+      ? membersWithOwnerRole.some((member) => member.id === ownerUserId)
+      : false;
+    if (ownerRow && !ownerAlreadyPresent) {
+      membersWithOwnerRole.unshift({
+        id: ownerRow.id,
+        email: ownerRow.email,
+        role: "owner",
+        status: "active",
+        must_change_password: ownerRow.must_change_password,
+      });
+    }
+
+    const activeEmails = new Set(membersWithOwnerRole.map((m) => normalizeEmail(m.email)));
     const invites = invitesQ.rows.filter((inv) => {
       if (inv.status !== "accepted") return true;
       return !activeEmails.has(normalizeEmail(inv.email));
     });
     return res.json({
       team: teamQ.rows[0] || null,
-      members: membersQ.rows,
-      invites,
-      role: effectivePlan.teamRole,
+      members: membersWithOwnerRole,
+      invites: invites.map((inv) => ({ ...inv, role: publicRoleLabel(inv.role) })),
+      role: publicRoleLabel(effectivePlan.teamRole),
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+function publicRoleLabel(rawRole) {
+  return normalizeTeamRole(rawRole);
+}
+
+async function getTeamDetails(req, res, next) {
+  try {
+    const effectivePlan = await getEffectivePlan(req.user.id);
+    if (!effectivePlan.teamId) {
+      return res.status(403).json({ error: "not_in_team" });
+    }
+
+    const teamQ = await pool.query(
+      `SELECT t.id, t.name, t.owner_user_id,
+              owner.email AS owner_email,
+              owner.display_name AS owner_name
+       FROM teams t
+       JOIN users owner ON owner.id = t.owner_user_id
+       WHERE t.id = $1
+       LIMIT 1`,
+      [effectivePlan.teamId]
+    );
+    const team = teamQ.rows[0];
+    if (!team) {
+      return res.status(404).json({ error: "team_not_found" });
+    }
+
+    const membersQ = await pool.query(
+      `SELECT u.id,
+              u.email,
+              u.display_name,
+              CASE
+                WHEN u.id = t.owner_user_id THEN 'owner'
+                WHEN tm.role IS NULL THEN 'member'
+                ELSE tm.role
+              END AS role
+       FROM teams t
+       JOIN users u
+         ON u.id = t.owner_user_id
+         OR u.id IN (
+           SELECT tm2.user_id
+           FROM team_members tm2
+           WHERE tm2.team_id = t.id
+             AND tm2.status = 'active'
+         )
+       LEFT JOIN team_members tm
+         ON tm.team_id = t.id
+        AND tm.user_id = u.id
+        AND tm.status = 'active'
+       WHERE t.id = $1
+       GROUP BY t.owner_user_id, u.id, u.email, u.display_name, tm.role
+       ORDER BY CASE WHEN u.id = t.owner_user_id THEN 0 ELSE 1 END, lower(u.email) ASC`,
+      [team.id]
+    );
+
+    return res.json({
+      id: team.id,
+      name: team.name || "MediaAuth Team",
+      plan: PLAN_CODE_TEAM,
+      owner: {
+        id: team.owner_user_id,
+        name: team.owner_name && String(team.owner_name).trim() ? String(team.owner_name).trim() : null,
+        email: team.owner_email,
+      },
+      members: membersQ.rows.map((member) => ({
+        id: member.id,
+        name: member.display_name && String(member.display_name).trim() ? String(member.display_name).trim() : null,
+        email: member.email,
+        role: publicRoleLabel(member.role),
+      })),
     });
   } catch (error) {
     return next(error);
@@ -249,7 +354,7 @@ async function addTeamMember(req, res, next) {
   try {
     const teamCheck = await canManageTeam(req.user.id);
     if (!teamCheck.ok) {
-      return res.status(403).json({ error: "Only team owner can manage members" });
+      return res.status(403).json({ error: "Only owner/admin can manage members" });
     }
     const email = normalizeEmail(req.body?.email);
     const resend = Boolean(req.body?.resend);
@@ -284,7 +389,7 @@ async function addTeamMember(req, res, next) {
       `INSERT INTO team_member_invites (
          id, team_id, email, invited_by_user_id, role, status, token_hash, expires_at, updated_at
        )
-       VALUES ($1, $2, $3, $4, 'team_member', 'pending', $5, NOW() + INTERVAL '${INVITE_TTL_DAYS} days', NOW())
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6, NOW() + INTERVAL '${INVITE_TTL_DAYS} days', NOW())
        ON CONFLICT (team_id, email)
        DO UPDATE SET
          role = EXCLUDED.role,
@@ -296,7 +401,7 @@ async function addTeamMember(req, res, next) {
          declined_at = NULL,
          revoked_at = NULL,
          updated_at = NOW()`,
-      [uuidv4(), teamCheck.effectivePlan.teamId, email, req.user.id, tokenHash],
+      [uuidv4(), teamCheck.effectivePlan.teamId, email, req.user.id, TEAM_ROLE_MEMBER, tokenHash],
     );
     const inviteQ = await pool.query(
       `SELECT id, email, role, status, expires_at, created_at, updated_at
@@ -386,7 +491,7 @@ async function acceptTeamInvite(req, res, next) {
         `INSERT INTO team_members (team_id, user_id, role, status)
          VALUES ($1, $2, $3, 'active')
          ON CONFLICT (team_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = 'active'`,
-        [invite.team_id, me.id, invite.role || "team_member"],
+        [invite.team_id, me.id, publicRoleLabel(invite.role || TEAM_ROLE_MEMBER)],
       );
       await pool.query(
         `UPDATE team_member_invites
@@ -455,7 +560,7 @@ async function resendTeamInvite(req, res, next) {
   try {
     const teamCheck = await canManageTeam(req.user.id);
     if (!teamCheck.ok) {
-      return res.status(403).json({ error: "Only team owner can manage members" });
+      return res.status(403).json({ error: "Only owner/admin can manage members" });
     }
     const inviteId = String(req.params.inviteId || "").trim();
     if (!inviteId) return res.status(400).json({ error: "inviteId is required" });
@@ -526,15 +631,148 @@ async function removeTeamMember(req, res, next) {
   try {
     const teamCheck = await canManageTeam(req.user.id);
     if (!teamCheck.ok) {
-      return res.status(403).json({ error: "Only team owner can manage members" });
+      return res.status(403).json({ error: "Only owner/admin can manage members" });
     }
     const userId = String(req.params.userId || "").trim();
     if (!userId) return res.status(400).json({ error: "userId is required" });
-    await pool.query("DELETE FROM team_members WHERE team_id = $1 AND user_id = $2", [
-      teamCheck.effectivePlan.teamId,
-      userId,
-    ]);
+    const teamId = teamCheck.effectivePlan.teamId;
+    const actorRole = publicRoleLabel(teamCheck.effectivePlan.teamRole);
+    const teamOwnerQ = await pool.query("SELECT owner_user_id FROM teams WHERE id = $1 LIMIT 1", [teamId]);
+    const ownerId = teamOwnerQ.rows[0]?.owner_user_id || null;
+    if (!ownerId) {
+      return res.status(404).json({ error: "team_not_found" });
+    }
+    if (userId === ownerId) {
+      return res.status(403).json({ error: "owner_cannot_be_removed" });
+    }
+
+    const targetRoleQ = await pool.query(
+      `SELECT role
+       FROM team_members
+       WHERE team_id = $1 AND user_id = $2 AND status = 'active'
+       LIMIT 1`,
+      [teamId, userId]
+    );
+    if (!targetRoleQ.rows[0]) {
+      return res.status(404).json({ error: "member_not_found" });
+    }
+    const targetRole = publicRoleLabel(targetRoleQ.rows[0].role);
+    if (!canManageMembers(actorRole)) {
+      return res.status(403).json({ error: "insufficient_permissions" });
+    }
+    if (!canManageAdmins(actorRole) && (targetRole === "admin" || targetRole === "owner")) {
+      return res.status(403).json({ error: "owner_required_for_admin_management" });
+    }
+
+    await pool.query("DELETE FROM team_members WHERE team_id = $1 AND user_id = $2", [teamId, userId]);
     return res.status(204).send();
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateTeamMemberRole(req, res, next) {
+  try {
+    const teamCheck = await canManageTeam(req.user.id);
+    if (!teamCheck.ok) {
+      return res.status(403).json({ error: "Only owner/admin can manage members" });
+    }
+    const teamId = teamCheck.effectivePlan.teamId;
+    const actorRole = publicRoleLabel(teamCheck.effectivePlan.teamRole);
+    const memberId = String(req.params.memberId || "").trim();
+    const requestedRole = publicRoleLabel(req.body?.role);
+    if (!memberId) return res.status(400).json({ error: "memberId is required" });
+    if (requestedRole !== "admin" && requestedRole !== "member") {
+      return res.status(400).json({ error: "role must be admin or member" });
+    }
+
+    const ownerQ = await pool.query("SELECT owner_user_id FROM teams WHERE id = $1 LIMIT 1", [teamId]);
+    const ownerId = ownerQ.rows[0]?.owner_user_id || null;
+    if (!ownerId) return res.status(404).json({ error: "team_not_found" });
+    if (memberId === ownerId) {
+      return res.status(403).json({ error: "owner_role_cannot_be_changed" });
+    }
+
+    const targetQ = await pool.query(
+      `SELECT role
+       FROM team_members
+       WHERE team_id = $1 AND user_id = $2 AND status = 'active'
+       LIMIT 1`,
+      [teamId, memberId]
+    );
+    if (!targetQ.rows[0]) return res.status(404).json({ error: "member_not_found" });
+    const targetRole = publicRoleLabel(targetQ.rows[0].role);
+
+    if (!canManageMembers(actorRole)) {
+      return res.status(403).json({ error: "insufficient_permissions" });
+    }
+    if (!canManageAdmins(actorRole) && (targetRole === "admin" || requestedRole === "admin")) {
+      return res.status(403).json({ error: "owner_required_for_admin_management" });
+    }
+
+    await pool.query(
+      "UPDATE team_members SET role = $3 WHERE team_id = $1 AND user_id = $2 AND status = 'active'",
+      [teamId, memberId, requestedRole]
+    );
+    return res.json({ ok: true, memberId, role: requestedRole });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function transferTeamOwnership(req, res, next) {
+  try {
+    const effectivePlan = await getEffectivePlan(req.user.id);
+    if (!effectivePlan.teamId) {
+      return res.status(403).json({ error: "not_in_team" });
+    }
+    if (!isOwner(effectivePlan.teamRole)) {
+      return res.status(403).json({ error: "owner_required" });
+    }
+
+    const teamId = effectivePlan.teamId;
+    const currentOwnerId = req.user.id;
+    const newOwnerUserId = String(req.body?.newOwnerUserId || "").trim();
+    if (!newOwnerUserId) {
+      return res.status(400).json({ error: "newOwnerUserId is required" });
+    }
+    if (newOwnerUserId === currentOwnerId) {
+      return res.status(400).json({ error: "new owner must be a different user" });
+    }
+
+    const targetMemberQ = await pool.query(
+      `SELECT user_id
+       FROM team_members
+       WHERE team_id = $1 AND user_id = $2 AND status = 'active'
+       LIMIT 1`,
+      [teamId, newOwnerUserId]
+    );
+    if (!targetMemberQ.rows[0]) {
+      return res.status(400).json({ error: "new owner must be an active team member" });
+    }
+
+    await pool.query("BEGIN");
+    try {
+      await pool.query("UPDATE teams SET owner_user_id = $2 WHERE id = $1", [teamId, newOwnerUserId]);
+      await pool.query(
+        `INSERT INTO team_members (team_id, user_id, role, status)
+         VALUES ($1, $2, 'admin', 'active')
+         ON CONFLICT (team_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status`,
+        [teamId, currentOwnerId]
+      );
+      await pool.query(
+        `UPDATE team_members
+         SET role = 'member'
+         WHERE team_id = $1 AND user_id = $2 AND status = 'active'`,
+        [teamId, newOwnerUserId]
+      );
+      await pool.query("COMMIT");
+    } catch (txError) {
+      await pool.query("ROLLBACK");
+      throw txError;
+    }
+
+    return res.json({ ok: true, teamId, ownerUserId: newOwnerUserId, previousOwnerRole: "admin" });
   } catch (error) {
     return next(error);
   }
@@ -544,10 +782,13 @@ module.exports = {
   selectPlan,
   getAccessState,
   getMyTeam,
+  getTeamDetails,
   lookupTeamInvite,
   addTeamMember,
   acceptTeamInvite,
   declineTeamInvite,
   resendTeamInvite,
   removeTeamMember,
+  updateTeamMemberRole,
+  transferTeamOwnership,
 };

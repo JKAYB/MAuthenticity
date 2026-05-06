@@ -2,7 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { addTeamMember, getMyTeam, removeTeamMember, resendTeamInvite } from "@/lib/api";
+import {
+  addTeamMember,
+  getMyTeam,
+  removeTeamMember,
+  resendTeamInvite,
+  transferTeamOwnership,
+  updateTeamMemberRole,
+} from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Mail, UserPlus, Users, Trash2, RefreshCw } from "lucide-react";
 import { SectionHeader } from "@/components/ui-ext/SectionHeader";
@@ -17,6 +24,26 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+type TeamRole = "owner" | "admin" | "member" | null | undefined;
+
+function isOwner(role: TeamRole) {
+  return role === "owner";
+}
+
+function canManageMembers(role: TeamRole) {
+  return role === "owner" || role === "admin";
+}
+
+function canManageAdmins(role: TeamRole) {
+  return role === "owner";
+}
+
+function roleLabel(role: TeamRole) {
+  if (role === "owner") return "Owner";
+  if (role === "admin") return "Team Admin";
+  return "Team Member";
+}
+
 export const Route = createFileRoute("/_app/team")({
   head: () => ({ meta: [{ title: "Team — MAuthenticity" }] }),
   component: TeamPage,
@@ -28,6 +55,9 @@ function TeamPage() {
   const [resendBusyId, setResendBusyId] = useState<string | null>(null);
   const [removePending, setRemovePending] = useState<{ id: string; email: string } | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
+  const [roleBusyMemberId, setRoleBusyMemberId] = useState<string | null>(null);
+  const [transferPending, setTransferPending] = useState<{ id: string; email: string } | null>(null);
+  const [transferBusy, setTransferBusy] = useState(false);
   const qc = useQueryClient();
   const teamQuery = useQuery({
     queryKey: ["team", "me"],
@@ -81,12 +111,43 @@ function TeamPage() {
     }
   };
 
+  const onChangeRole = async (memberId: string, role: "admin" | "member") => {
+    setRoleBusyMemberId(memberId);
+    try {
+      await updateTeamMemberRole(memberId, role);
+      toast.success("Role updated.");
+      await qc.invalidateQueries({ queryKey: ["team", "me"] });
+      await qc.invalidateQueries({ queryKey: ["team", "details"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update role");
+    } finally {
+      setRoleBusyMemberId(null);
+    }
+  };
+
+  const confirmTransferOwnership = async () => {
+    if (!transferPending) return;
+    setTransferBusy(true);
+    try {
+      await transferTeamOwnership(transferPending.id);
+      toast.success("Ownership transferred.");
+      setTransferPending(null);
+      await qc.invalidateQueries({ queryKey: ["team", "me"] });
+      await qc.invalidateQueries({ queryKey: ["team", "details"] });
+      await qc.invalidateQueries({ queryKey: ["me"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to transfer ownership");
+    } finally {
+      setTransferBusy(false);
+    }
+  };
+
   if (teamQuery.isPending) return <div className="text-sm text-muted-foreground">Loading team…</div>;
   if (teamQuery.isError) return <div className="text-sm text-destructive">{teamQuery.error.message}</div>;
 
   const role = teamQuery.data.role;
-  if (role !== "team_owner") {
-    return <div className="text-sm text-muted-foreground">Only team owners can manage members.</div>;
+  if (!canManageMembers(role)) {
+    return <div className="text-sm text-muted-foreground">Only owner or team admin can manage members.</div>;
   }
   const statusStyles: Record<string, string> = {
     pending: "text-warning",
@@ -149,6 +210,10 @@ function TeamPage() {
                 {(teamQuery.data.members || []).map((m) => {
                   const initial = m.email.charAt(0).toUpperCase();
                   const ready = !m.must_change_password;
+                  const canRemoveTarget =
+                    canManageMembers(role) &&
+                    m.role !== "owner" &&
+                    (canManageAdmins(role) || m.role === "member");
                   return (
                     <li
                       key={m.id}
@@ -163,7 +228,7 @@ function TeamPage() {
                           {m.email}
                         </div>
                         <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="capitalize">{m.role}</span>
+                          <span>{roleLabel(m.role)}</span>
                           <span className="text-border">•</span>
                           <span
                             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${ready
@@ -180,14 +245,41 @@ function TeamPage() {
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => void onRemove(m.id, m.email)}
-                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Remove
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {isOwner(role) && m.role !== "owner" ? (
+                          <button
+                            type="button"
+                            disabled={roleBusyMemberId === m.id}
+                            onClick={() => void onChangeRole(m.id, m.role === "admin" ? "member" : "admin")}
+                            className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary disabled:opacity-60"
+                          >
+                            {roleBusyMemberId === m.id
+                              ? "Saving..."
+                              : m.role === "admin"
+                                ? "Set member"
+                                : "Set admin"}
+                          </button>
+                        ) : null}
+                        {isOwner(role) && m.role !== "owner" ? (
+                          <button
+                            type="button"
+                            onClick={() => setTransferPending({ id: m.id, email: m.email })}
+                            className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+                          >
+                            Make owner
+                          </button>
+                        ) : null}
+                        {canRemoveTarget ? (
+                          <button
+                            type="button"
+                            onClick={() => void onRemove(m.id, m.email)}
+                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Remove
+                          </button>
+                        ) : null}
+                      </div>
                     </li>
                   );
                 })}
@@ -280,6 +372,30 @@ function TeamPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {removeBusy ? "Removing..." : "Remove member"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={Boolean(transferPending)} onOpenChange={(open) => !open && setTransferPending(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Transfer team ownership?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {transferPending
+                ? `This will make ${transferPending.email} the new owner. You will become Team Admin.`
+                : "This will transfer ownership to the selected member."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={transferBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={transferBusy}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmTransferOwnership();
+              }}
+            >
+              {transferBusy ? "Transferring..." : "Transfer ownership"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

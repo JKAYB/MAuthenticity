@@ -5,6 +5,7 @@ const authRoutes = require("./routes/auth.routes");
 const accessRoutes = require("./routes/access.routes");
 const scanRoutes = require("./routes/scan.routes");
 const scanAdminRoutes = require("./routes/scanAdmin.routes");
+const teamRoutes = require("./routes/team.routes");
 const { getMe, updateMe, changePassword, deleteMe } = require("./controllers/auth.controller");
 const { authMiddleware, requireUser } = require("./middleware/auth.middleware");
 const { internalOpsMiddleware } = require("./middleware/internalOps.middleware");
@@ -84,6 +85,7 @@ function createApp() {
   app.use("/auth", privateCacheNoStore, authRoutes);
   app.use("/access", privateCacheNoStore, accessRoutes);
   app.use("/scan", privateCacheNoStore, scanRoutes);
+  app.use("/team", privateCacheNoStore, teamRoutes);
   app.use("/internal/scans", privateCacheNoStore, internalOpsMiddleware, scanAdminRoutes);
 
   app.use(notFoundHandler);

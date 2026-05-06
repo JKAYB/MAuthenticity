@@ -248,9 +248,7 @@ async function fetchUserProfile(userId) {
   let organizationId = null;
   let organizationName = null;
   let organizationPlan = null;
-  const hasTeamMembership =
-    Boolean(effectivePlan.teamId) &&
-    (effectivePlan.teamRole === "team_owner" || effectivePlan.teamRole === "team_member");
+  const hasTeamMembership = Boolean(effectivePlan.teamId);
   if (hasTeamMembership) {
     const teamQ = await pool.query("SELECT id, name FROM teams WHERE id = $1 LIMIT 1", [effectivePlan.teamId]);
     if (teamQ.rows[0]) {
@@ -267,11 +265,13 @@ async function fetchUserProfile(userId) {
       ? effectivePlan.teamSubscription?.expires_at || null
       : effectivePlan.userSubscription?.expires_at || null;
   const teamRole =
-    effectivePlan.teamRole === "team_owner"
+    effectivePlan.teamRole === "owner"
       ? "owner"
-      : effectivePlan.teamRole === "team_member"
-        ? "member"
-        : null;
+      : effectivePlan.teamRole === "admin"
+        ? "admin"
+        : effectivePlan.teamRole === "member"
+          ? "member"
+          : null;
   return {
     id: row.id,
     email: row.email,
@@ -301,7 +301,7 @@ async function fetchUserProfile(userId) {
       scans_used: effectivePlan.scansUsed,
       scan_limit: effectivePlan.scanLimit,
       has_paid_history: effectivePlan.hasPaidHistory,
-      can_manage_team: effectivePlan.teamRole === "team_owner",
+      can_manage_team: effectivePlan.teamRole === "owner" || effectivePlan.teamRole === "admin",
     },
   };
 }

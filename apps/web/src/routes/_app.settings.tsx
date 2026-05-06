@@ -1,20 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useMemo, useState, useSyncExternalStore } from "react";
 
-const settingsTabIds = ["profile", "security", "notifications", "billing"] as const;
+const settingsTabIds = ["profile", "security", "team", "notifications", "billing"] as const;
 type SettingsTabId = (typeof settingsTabIds)[number];
 
 function parseSettingsTab(tab: unknown): SettingsTabId | undefined {
-  if (tab === "profile" || tab === "security" || tab === "notifications" || tab === "billing") return tab;
+  if (tab === "profile" || tab === "security" || tab === "team" || tab === "notifications" || tab === "billing") return tab;
   return undefined;
 }
 import { useForm, type UseFormRegister } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Camera, Key, Bell, Trash2, Check, Eye, EyeOff } from "lucide-react";
+import { Camera, Key, Bell, Trash2, Check, Eye, EyeOff, Users } from "lucide-react";
 import { ProfileAccountCard } from "@/components/profile/ProfileSection";
 import { meQueryKey, useChangePassword, useMe } from "@/features/auth/hooks";
 import { getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
@@ -24,7 +24,7 @@ import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { getPlanLabel, isExpiredPlan, isFreePlan, isPaidPlan, shouldShowUpgradeCard } from "@/features/billing/planAccess";
 import { getEffectivePlan } from "@/features/billing/getEffectivePlan";
-import { deleteMyAccount } from "@/lib/api";
+import { deleteMyAccount, getTeamDetails } from "@/lib/api";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,6 +99,7 @@ function SettingsPage() {
   const tabs = [
     { id: "profile", label: "Profile", icon: Camera },
     { id: "security", label: "Security", icon: Key },
+    { id: "team", label: "Team", icon: Users },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "billing", label: "Billing", icon: Key },
   ] as const;
@@ -265,6 +266,7 @@ function SettingsPage() {
               </div>
             </Card>
           )}
+          {tab === "team" && <TeamDetailsCard liveDemo={liveDemo} />}
           {tab === "billing" && <BillingCard liveDemo={liveDemo} />}
         </motion.div>
       </div>
@@ -546,6 +548,107 @@ function BillingCard({ liveDemo }: { liveDemo: boolean }) {
           )}
         </div>
       </div> */}
+    </Card>
+  );
+}
+
+function roleBadgeClass(role: "owner" | "admin" | "member") {
+  if (role === "owner") return "bg-primary/15 text-primary ring-primary/35";
+  if (role === "admin") return "bg-violet-500/15 text-violet-600 ring-violet-500/35 dark:text-violet-300";
+  return "bg-muted text-muted-foreground ring-border";
+}
+
+function roleLabel(role: "owner" | "admin" | "member") {
+  if (role === "owner") return "Owner";
+  if (role === "admin") return "Team Admin";
+  return "Team Member";
+}
+
+function TeamDetailsCard({ liveDemo }: { liveDemo: boolean }) {
+  const teamQuery = useQuery({
+    queryKey: ["team", "details"],
+    queryFn: getTeamDetails,
+    enabled: !liveDemo,
+    retry: false,
+  });
+
+  if (liveDemo) {
+    return (
+      <Card title="Team">
+        <p className="text-sm text-muted-foreground">Team details are not available in live demo mode.</p>
+      </Card>
+    );
+  }
+
+  if (teamQuery.isPending) {
+    return (
+      <Card title="Team">
+        <div className="space-y-3">
+          <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-5/6 animate-pulse rounded bg-muted" />
+        </div>
+      </Card>
+    );
+  }
+
+  if (teamQuery.isError) {
+    const errorMessage = teamQuery.error instanceof Error ? teamQuery.error.message : "Unable to load team details";
+    const notInTeam = /not_in_team|403/i.test(errorMessage);
+    return (
+      <Card title="Team">
+        <p className="text-sm text-muted-foreground">
+          {notInTeam ? "You are not part of a team organization." : errorMessage}
+        </p>
+      </Card>
+    );
+  }
+
+  const team = teamQuery.data;
+  if (!team || !Array.isArray(team.members) || team.members.length === 0) {
+    return (
+      <Card title="Team">
+        <p className="text-sm text-muted-foreground">No team details available.</p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title="Team">
+      <div className="space-y-5">
+        <div className="rounded-xl border border-border bg-input/30 p-4">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Team name</div>
+          <div className="mt-1 text-lg font-semibold">{team.name || "MediaAuth Team"}</div>
+          <div className="mt-2 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary ring-1 ring-primary/20">
+            Plan: {String(team.plan || "team")}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-input/20 p-4">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Owner</div>
+          <div className="mt-1 text-sm font-semibold">{team.owner.name || team.owner.email}</div>
+          <div className="mt-0.5 break-all text-xs text-muted-foreground">{team.owner.email}</div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card">
+          <div className="border-b border-border px-4 py-3 text-xs uppercase tracking-wide text-muted-foreground">
+            Members ({team.members.length})
+          </div>
+          <ul className="divide-y divide-border">
+            {team.members.map((member) => (
+              <li key={member.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{member.name || member.email}</div>
+                  <div className="truncate text-xs text-muted-foreground">{member.email}</div>
+                </div>
+                <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${roleBadgeClass(member.role)}`}>
+                  {roleLabel(member.role)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </Card>
   );
 }
