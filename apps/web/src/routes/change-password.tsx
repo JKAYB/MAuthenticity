@@ -36,7 +36,7 @@ function ChangePasswordPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      await changePassword({ currentPassword, newPassword });
+      await changePassword({ currentPassword, newPassword, confirmPassword: newPassword });
       await getRouterQueryClient().invalidateQueries({ queryKey: meQueryKey });
       const me = await prefetchMe();
       const target = hasCompletedOnboarding(me) ? "/dashboard" : "/plans";

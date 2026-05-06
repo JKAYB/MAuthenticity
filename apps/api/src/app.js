@@ -78,6 +78,7 @@ function createApp() {
   app.get("/me", authMiddleware, requireUser, privateCacheNoStore, getMe);
   app.patch("/me", authMiddleware, requireUser, privateCacheNoStore, updateMe);
   app.patch("/me/password", authMiddleware, requireUser, privateCacheNoStore, changePassword);
+  app.post("/me/password", authMiddleware, requireUser, privateCacheNoStore, changePassword);
   app.delete("/me", authMiddleware, requireUser, privateCacheNoStore, deleteMe);
 
   app.use("/auth", privateCacheNoStore, authRoutes);

@@ -114,6 +114,7 @@ export type MeResponse = {
   planSelected: boolean;
   onboardingSkipped?: boolean;
   must_change_password: boolean;
+  hasPassword: boolean;
   subscriptionStatus: "active" | "expired" | "none";
   scanLimit: number | null;
   scansUsed: number;
@@ -158,11 +159,30 @@ export async function updateProfile(body: {
 }
 
 export async function changePassword(body: {
-  currentPassword: string;
+  currentPassword?: string;
   newPassword: string;
+  confirmPassword: string;
 }): Promise<{ ok: boolean }> {
   return apiJson<{ ok: boolean }>("/me/password", {
-    method: "PATCH",
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function requestPasswordReset(email: string): Promise<{ ok: boolean; message: string }> {
+  return apiJson<{ ok: boolean; message: string }>("/auth/password-reset/request", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function confirmPasswordReset(body: {
+  token: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<{ ok: boolean }> {
+  return apiJson<{ ok: boolean }>("/auth/password-reset/confirm", {
+    method: "POST",
     body: JSON.stringify(body),
   });
 }
