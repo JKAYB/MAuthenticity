@@ -3,6 +3,7 @@ const {
   selectPlan,
   getAccessState,
   getMyTeam,
+  lookupTeamInvite,
   addTeamMember,
   acceptTeamInvite,
   declineTeamInvite,
@@ -12,6 +13,8 @@ const {
 const { authMiddleware, requireUser } = require("../middleware/auth.middleware");
 
 const router = express.Router();
+
+router.get("/team/invites/lookup", lookupTeamInvite);
 
 router.use(authMiddleware);
 

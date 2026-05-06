@@ -64,6 +64,13 @@ function authCookieFromLoginResponse(loginResponse) {
   return setCookie.split(";")[0];
 }
 
+function clearCookieSeen(response) {
+  const setCookie = String(response.res.headers.get("set-cookie") || "");
+  if (!setCookie || !setCookie.includes("auth_token=")) return false;
+  const lower = setCookie.toLowerCase();
+  return lower.includes("max-age=0") || lower.includes("expires=thu, 01 jan 1970");
+}
+
 d("team invitation flow", () => {
   /** @type {import('pg').Pool} */
   let pool;
@@ -193,6 +200,20 @@ d("team invitation flow", () => {
       "UPDATE team_member_invites SET token_hash = $2, expires_at = NOW() + INTERVAL '7 days', updated_at = NOW() WHERE id = $1",
       [inviteQ.rows[0].id, sha256(knownToken)],
     );
+    const lookupPending = await fetchJson(
+      `${baseUrl}/access/team/invites/lookup?token=${encodeURIComponent(knownToken)}`,
+    );
+    assert.equal(lookupPending.res.status, 200, JSON.stringify(lookupPending.body));
+    assert.equal(lookupPending.body.ok, true);
+    assert.equal(String(lookupPending.body.invite.email).toLowerCase(), existingEmail.toLowerCase());
+    assert.equal(lookupPending.body.hasAccount, true);
+    assert.equal(lookupPending.body.invite.canAccept, true);
+    assert.equal(lookupPending.body.invite.canDecline, true);
+    const lookupInvalid = await fetchJson(
+      `${baseUrl}/access/team/invites/lookup?token=${encodeURIComponent(`invalid-${knownToken}`)}`,
+    );
+    assert.equal(lookupInvalid.res.status, 404);
+    assert.equal(lookupInvalid.body.error, "invite_not_found");
 
     const acceptBeforeLogin = await fetchJson(`${baseUrl}/access/team/invites/accept`, {
       method: "POST",
@@ -208,7 +229,7 @@ d("team invitation flow", () => {
       body: JSON.stringify({ token: knownToken }),
     });
     assert.equal(acceptMismatch.res.status, 403);
-    assert.equal(acceptMismatch.body.error, "email_mismatch");
+    assert.equal(acceptMismatch.body.error, "account_mismatch");
 
     const existingLoginAccept = await login(baseUrl, existingEmail, existingPassword);
     assert.equal(existingLoginAccept.res.status, 200);
@@ -220,6 +241,17 @@ d("team invitation flow", () => {
     });
     assert.equal(acceptOk.res.status, 200, JSON.stringify(acceptOk.body));
     assert.equal(acceptOk.body.status, "accepted");
+    const acceptedLookupToken = `accepted-lookup-${crypto.randomBytes(8).toString("hex")}`;
+    await pool.query("UPDATE team_member_invites SET token_hash = $2 WHERE id = $1", [
+      inviteQ.rows[0].id,
+      sha256(acceptedLookupToken),
+    ]);
+    const lookupAccepted = await fetchJson(
+      `${baseUrl}/access/team/invites/lookup?token=${encodeURIComponent(acceptedLookupToken)}`,
+    );
+    assert.equal(lookupAccepted.res.status, 409);
+    assert.equal(lookupAccepted.body.error, "invite_not_pending");
+    assert.equal(lookupAccepted.body.status, "accepted");
 
     const activeAfterAcceptQ = await pool.query(
       `SELECT COUNT(*)::int AS c
@@ -312,8 +344,19 @@ d("team invitation flow", () => {
     });
     assert.equal(sendInvite.res.status, 201);
     const inviteId = sendInvite.body.invite.id;
+    const lookupNewInvite = await fetchJson(
+      `${baseUrl}/access/team/invites/lookup?token=${encodeURIComponent(
+        `missing-before-token-${crypto.randomBytes(8).toString("hex")}`,
+      )}`,
+    );
+    assert.equal(lookupNewInvite.res.status, 404);
     const token = `decline-${crypto.randomBytes(8).toString("hex")}`;
     await pool.query("UPDATE team_member_invites SET token_hash = $2 WHERE id = $1", [inviteId, sha256(token)]);
+    const lookupBeforeSignup = await fetchJson(
+      `${baseUrl}/access/team/invites/lookup?token=${encodeURIComponent(token)}`,
+    );
+    assert.equal(lookupBeforeSignup.res.status, 200);
+    assert.equal(lookupBeforeSignup.body.hasAccount, false, "hasAccount must be based on invited email");
 
     const decline = await fetchJson(`${baseUrl}/access/team/invites/decline`, {
       method: "POST",
@@ -348,6 +391,11 @@ d("team invitation flow", () => {
     });
     assert.equal(acceptExpired.res.status, 409);
     assert.equal(acceptExpired.body.error, "invite_expired");
+    const lookupExpired = await fetchJson(
+      `${baseUrl}/access/team/invites/lookup?token=${encodeURIComponent(expiredToken)}`,
+    );
+    assert.equal(lookupExpired.res.status, 409);
+    assert.equal(lookupExpired.body.error, "invite_expired");
 
     const resendExpired = await fetchJson(`${baseUrl}/access/team/invites/${inviteId}/resend`, {
       method: "POST",
@@ -375,6 +423,19 @@ d("team invitation flow", () => {
       body: JSON.stringify({ token: acceptedToken }),
     });
     assert.equal(accept.res.status, 200);
+    assert.equal(accept.body.organizationPlan, "team");
+    assert.equal(Boolean(accept.body.planSelected), true);
+    assert.equal(Boolean(accept.body.onboardingSkipped), true);
+
+    const invitedMeAfterAccept = await fetchJson(`${baseUrl}/me`, {
+      headers: { Cookie: invitedCookie },
+    });
+    assert.equal(invitedMeAfterAccept.res.status, 200, JSON.stringify(invitedMeAfterAccept.body));
+    assert.ok(invitedMeAfterAccept.body.organizationId);
+    assert.equal(invitedMeAfterAccept.body.organizationPlan, "team");
+    assert.equal(Boolean(invitedMeAfterAccept.body.planSelected), true);
+    assert.equal(Boolean(invitedMeAfterAccept.body.plan_selected), true);
+    assert.equal(Boolean(invitedMeAfterAccept.body.onboardingSkipped), true);
 
     const resendAccepted = await fetchJson(`${baseUrl}/access/team/invites/${inviteId}/resend`, {
       method: "POST",
@@ -401,5 +462,124 @@ d("team invitation flow", () => {
       body: JSON.stringify({ email: inviteEmail.toUpperCase() }),
     });
     assert.equal(reinviteActive.res.status, 409);
+  });
+
+  it("re-invite after account deletion returns lookup with hasAccount=false", async () => {
+    const ownerEmail = `owner3-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const ownerPassword = "OwnerPass1!";
+    const deletedEmail = `deleted-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const deletedPassword = "DeletedPass1!";
+
+    await signup(baseUrl, ownerEmail, ownerPassword);
+    await signup(baseUrl, deletedEmail, deletedPassword);
+
+    const ownerIdQ = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [ownerEmail]);
+    const deletedIdQ = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [deletedEmail]);
+    createdUserIds.push(ownerIdQ.rows[0].id);
+
+    const ownerLogin = await login(baseUrl, ownerEmail, ownerPassword);
+    assert.equal(ownerLogin.res.status, 200);
+    const ownerCookie = authCookieFromLoginResponse(ownerLogin);
+    const selectTeam = await fetchJson(`${baseUrl}/access/select`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ planCode: "team" }),
+    });
+    assert.equal(selectTeam.res.status, 200, JSON.stringify(selectTeam.body));
+
+    const deletedLogin = await login(baseUrl, deletedEmail, deletedPassword);
+    assert.equal(deletedLogin.res.status, 200);
+    const deletedCookie = authCookieFromLoginResponse(deletedLogin);
+    const deleteSelf = await fetchJson(`${baseUrl}/me`, {
+      method: "DELETE",
+      headers: { Cookie: deletedCookie },
+    });
+    assert.equal(deleteSelf.res.status, 200, JSON.stringify(deleteSelf.body));
+    assert.equal(deleteSelf.body.ok, true);
+
+    const deletedStillExistsQ = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [
+      deletedEmail,
+    ]);
+    assert.equal(deletedStillExistsQ.rows.length, 0, "deleted user must not exist");
+
+    const reinvite = await fetchJson(`${baseUrl}/access/team/members`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ email: deletedEmail }),
+    });
+    assert.equal(reinvite.res.status, 201, JSON.stringify(reinvite.body));
+    const inviteId = reinvite.body.invite?.id;
+    assert.ok(inviteId, "invite id should be returned");
+
+    const inviteRowQ = await pool.query(
+      "SELECT id, status, token_hash FROM team_member_invites WHERE id = $1 LIMIT 1",
+      [inviteId],
+    );
+    assert.equal(inviteRowQ.rows[0].status, "pending");
+    assert.ok(inviteRowQ.rows[0].token_hash, "token hash should be set");
+
+    const knownToken = `reinvite-${crypto.randomBytes(8).toString("hex")}`;
+    await pool.query(
+      "UPDATE team_member_invites SET token_hash = $2, expires_at = NOW() + INTERVAL '7 days', status = 'pending', updated_at = NOW() WHERE id = $1",
+      [inviteId, sha256(knownToken)],
+    );
+    const lookup = await fetchJson(`${baseUrl}/access/team/invites/lookup?token=${encodeURIComponent(knownToken)}`);
+    assert.equal(lookup.res.status, 200, JSON.stringify(lookup.body));
+    assert.equal(lookup.body.ok, true);
+    assert.equal(lookup.body.hasAccount, false);
+    assert.equal(String(lookup.body.invite.email).toLowerCase(), deletedEmail.toLowerCase());
+
+    const deletedId = deletedIdQ.rows[0]?.id;
+    if (deletedId) {
+      const idx = createdUserIds.indexOf(deletedId);
+      if (idx >= 0) createdUserIds.splice(idx, 1);
+    }
+  });
+
+  it("logout and delete-account clear auth cookie and /me returns 401", async () => {
+    const logoutEmail = `logout-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const deleteEmail = `delacct-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const password = "AccountPass1!";
+
+    await signup(baseUrl, logoutEmail, password);
+    await signup(baseUrl, deleteEmail, password);
+
+    const logoutIdQ = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [logoutEmail]);
+    const deleteIdQ = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [deleteEmail]);
+    createdUserIds.push(logoutIdQ.rows[0].id, deleteIdQ.rows[0].id);
+
+    const logoutLogin = await login(baseUrl, logoutEmail, password);
+    assert.equal(logoutLogin.res.status, 200, JSON.stringify(logoutLogin.body));
+    const logoutCookie = authCookieFromLoginResponse(logoutLogin);
+    const logoutRes = await fetchJson(`${baseUrl}/auth/logout`, {
+      method: "POST",
+      headers: { Cookie: logoutCookie },
+    });
+    assert.equal(logoutRes.res.status, 204);
+    assert.equal(clearCookieSeen(logoutRes), true, "logout should clear auth_token cookie");
+    const meAfterLogout = await fetchJson(`${baseUrl}/me`);
+    assert.equal(meAfterLogout.res.status, 401, JSON.stringify(meAfterLogout.body));
+
+    const deleteLogin = await login(baseUrl, deleteEmail, password);
+    assert.equal(deleteLogin.res.status, 200, JSON.stringify(deleteLogin.body));
+    const deleteCookie = authCookieFromLoginResponse(deleteLogin);
+    const deleteRes = await fetchJson(`${baseUrl}/me`, {
+      method: "DELETE",
+      headers: { Cookie: deleteCookie },
+    });
+    assert.equal(deleteRes.res.status, 200, JSON.stringify(deleteRes.body));
+    assert.equal(clearCookieSeen(deleteRes), true, "delete account should clear auth_token cookie");
+    const meAfterDelete = await fetchJson(`${baseUrl}/me`);
+    assert.equal(meAfterDelete.res.status, 401, JSON.stringify(meAfterDelete.body));
+    const deletedStillExistsQ = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [
+      deleteEmail,
+    ]);
+    assert.equal(deletedStillExistsQ.rows.length, 0, "deleted user must not exist");
+
+    const deleteId = deleteIdQ.rows[0]?.id;
+    if (deleteId) {
+      const idx = createdUserIds.indexOf(deleteId);
+      if (idx >= 0) createdUserIds.splice(idx, 1);
+    }
   });
 });

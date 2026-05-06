@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useMemo, useState, useSyncExternalStore } from "react";
 
@@ -15,7 +16,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { Camera, Key, Bell, Trash2, Check, Eye, EyeOff } from "lucide-react";
 import { ProfileAccountCard } from "@/components/profile/ProfileSection";
-import { useChangePassword, useMe } from "@/features/auth/hooks";
+import { meQueryKey, useChangePassword, useMe } from "@/features/auth/hooks";
 import { getLiveDemoSnapshot, subscribeLiveDemo } from "@/lib/demo-mode";
 import { user as demoUser } from "@/lib/mock-data";
 import { SectionHeader } from "@/components/ui-ext/SectionHeader";
@@ -23,6 +24,18 @@ import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { getPlanLabel, isExpiredPlan, isFreePlan, isPaidPlan, shouldShowUpgradeCard } from "@/features/billing/planAccess";
 import { getEffectivePlan } from "@/features/billing/getEffectivePlan";
+import { deleteMyAccount } from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_app/settings")({
   validateSearch: (raw: Record<string, unknown>): { tab?: SettingsTabId } => {
@@ -56,10 +69,32 @@ function SettingsPage() {
   const { tab: tabSearch } = Route.useSearch();
   const tab: SettingsTabId = tabSearch ?? "profile";
   const navigate = useNavigate({ from: "/_app/settings" });
+  const queryClient = useQueryClient();
   const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
   const meQuery = useMe();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletePending, setDeletePending] = useState(false);
   const sessionTitle = useMemo(() => getBrowserSessionTitle(), []);
   const sessionEmail = liveDemo ? demoUser.email : (meQuery.data?.email ?? "");
+
+  const onConfirmDeleteAccount = async () => {
+    if (deletePending) return;
+    setDeletePending(true);
+    try {
+      await deleteMyAccount();
+      queryClient.removeQueries({ queryKey: meQueryKey });
+      queryClient.setQueryData(meQueryKey, undefined);
+      toast.success("Account deleted");
+      setDeleteDialogOpen(false);
+      navigate({ to: "/", replace: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete account";
+      console.error("[settings] delete account failed", error);
+      toast.error(message);
+    } finally {
+      setDeletePending(false);
+    }
+  };
 
   const tabs = [
     { id: "profile", label: "Profile", icon: Camera },
@@ -180,12 +215,37 @@ function SettingsPage() {
                       Permanently remove your account and all scan history. This cannot be undone.
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-destructive/15 px-3 text-sm font-medium text-destructive ring-1 ring-destructive/30 hover:bg-destructive/25 sm:w-auto sm:justify-start"
-                  >
-                    <Trash2 className="h-4 w-4" /> Delete account
-                  </button>
+                  <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                    <AlertDialogTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-destructive/15 px-3 text-sm font-medium text-destructive ring-1 ring-destructive/30 hover:bg-destructive/25 sm:w-auto sm:justify-start"
+                      >
+                        <Trash2 className="h-4 w-4" /> Delete account
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete account permanently?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently remove your account and scan history. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={deletePending}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={(event) => {
+                            event.preventDefault();
+                            void onConfirmDeleteAccount();
+                          }}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          disabled={deletePending}
+                        >
+                          {deletePending ? "Deleting..." : "Yes, delete account"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </Card>
             </>

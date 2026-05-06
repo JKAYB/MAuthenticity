@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { fetchFreshMe, prefetchMe, useMe } from "@/features/auth/hooks";
 import { meQueryKey } from "@/features/auth/queryKeys";
+import { hasCompletedOnboarding } from "@/features/auth/onboarding";
 import { selectPlan } from "@/lib/api";
 import { Sparkles, Check } from "lucide-react";
 import { getPlanCardState } from "@/features/billing/planAccess";
@@ -65,8 +66,8 @@ function PlansPage() {
       await selectPlan(planCode);
       const freshMe = await fetchFreshMe(qc);
       console.info("[plans] fresh me after select", freshMe);
-      const planSelected = Boolean(freshMe.planSelected ?? freshMe.plan_selected);
-      if (!planSelected) {
+      const onboardingComplete = hasCompletedOnboarding(freshMe);
+      if (!onboardingComplete) {
         toast.error("Plan was selected, but profile did not update. Please refresh.");
         return;
       }
@@ -92,8 +93,8 @@ function PlansPage() {
       await selectPlan(onboardingPick);
       await qc.invalidateQueries({ queryKey: meQueryKey });
       const freshMe = await fetchFreshMe(qc);
-      const planSelected = Boolean(freshMe.planSelected ?? freshMe.plan_selected);
-      if (!planSelected) {
+      const onboardingComplete = hasCompletedOnboarding(freshMe);
+      if (!onboardingComplete) {
         toast.error("Plan was selected, but profile did not update. Please refresh.");
         return;
       }

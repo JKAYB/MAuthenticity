@@ -5,6 +5,7 @@ import { prefetchMe } from "@/features/auth/hooks";
 import { changePassword } from "@/lib/api";
 import { getRouterQueryClient } from "@/lib/queryClient";
 import { meQueryKey } from "@/features/auth/queryKeys";
+import { hasCompletedOnboarding } from "@/features/auth/onboarding";
 
 export const Route = createFileRoute("/change-password")({
   beforeLoad: async () => {
@@ -12,7 +13,7 @@ export const Route = createFileRoute("/change-password")({
     try {
       const me = await prefetchMe();
       if (!me.must_change_password) {
-        const target = me.planSelected ?? me.plan_selected ? "/dashboard" : "/plans";
+        const target = hasCompletedOnboarding(me) ? "/dashboard" : "/plans";
         console.info("[auth] redirect target", target);
         throw redirect({ to: target as "/dashboard" | "/plans" });
       }
@@ -38,7 +39,7 @@ function ChangePasswordPage() {
       await changePassword({ currentPassword, newPassword });
       await getRouterQueryClient().invalidateQueries({ queryKey: meQueryKey });
       const me = await prefetchMe();
-      const target = me.planSelected ?? me.plan_selected ? "/dashboard" : "/plans";
+      const target = hasCompletedOnboarding(me) ? "/dashboard" : "/plans";
       toast.success("Password changed");
       navigate({ to: target });
     } catch (err) {

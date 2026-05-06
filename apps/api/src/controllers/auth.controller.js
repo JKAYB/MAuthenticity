@@ -9,15 +9,25 @@ const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 200;
 const AUTH_COOKIE_NAME = "auth_token";
 
-function authCookieOptions() {
+function authCookieBaseOptions() {
   const isProduction = process.env.NODE_ENV === "production";
-
-  return {
+  const domain = String(process.env.AUTH_COOKIE_DOMAIN || "").trim();
+  const options = {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? "none" : "lax",
-    maxAge: 24 * 60 * 60 * 1000,
     path: "/",
+  };
+  if (domain) {
+    options.domain = domain;
+  }
+  return options;
+}
+
+function authCookieOptions() {
+  return {
+    ...authCookieBaseOptions(),
+    maxAge: 24 * 60 * 60 * 1000,
   };
 }
 
@@ -40,13 +50,14 @@ function issueAuthSession(res, user) {
 }
 
 function clearAuthCookie(res) {
-  const opts = authCookieOptions();
-  res.clearCookie(AUTH_COOKIE_NAME, {
-    httpOnly: opts.httpOnly,
-    secure: opts.secure,
+  const opts = authCookieBaseOptions();
+  console.info("[auth] clearing auth cookie with options", {
+    path: opts.path,
+    domain: opts.domain || null,
     sameSite: opts.sameSite,
-    path: opts.path
+    secure: opts.secure,
   });
+  res.clearCookie(AUTH_COOKIE_NAME, opts);
 }
 
 function maskApiKey(keyValue) {
@@ -223,7 +234,10 @@ async function fetchUserProfile(userId) {
   let organizationId = null;
   let organizationName = null;
   let organizationPlan = null;
-  if (effectivePlan.teamId && (effectivePlan.teamRole === "team_owner" || effectivePlan.teamRole === "team_member")) {
+  const hasTeamMembership =
+    Boolean(effectivePlan.teamId) &&
+    (effectivePlan.teamRole === "team_owner" || effectivePlan.teamRole === "team_member");
+  if (hasTeamMembership) {
     const teamQ = await pool.query("SELECT id, name FROM teams WHERE id = $1 LIMIT 1", [effectivePlan.teamId]);
     if (teamQ.rows[0]) {
       organizationId = teamQ.rows[0].id;
@@ -231,6 +245,8 @@ async function fetchUserProfile(userId) {
       organizationPlan = effectivePlan.planCode;
     }
   }
+  const onboardingSkipped = hasTeamMembership && !Boolean(row.plan_selected);
+  const planSelected = Boolean(row.plan_selected) || hasTeamMembership;
   const subscriptionStatus = subscriptionStatusFromEffectivePlan(effectivePlan);
   const planExpiresAt =
     effectivePlan.planCode === "team"
@@ -252,8 +268,9 @@ async function fetchUserProfile(userId) {
     organizationPlan,
     plan: row.plan || "free",
     selectedPlan: row.plan || "free",
-    plan_selected: Boolean(row.plan_selected),
-    planSelected: Boolean(row.plan_selected),
+    plan_selected: planSelected,
+    planSelected,
+    onboardingSkipped,
     must_change_password: Boolean(row.must_change_password),
     subscriptionStatus,
     scanLimit: effectivePlan.scanLimit,
@@ -363,6 +380,45 @@ async function updateMe(req, res, next) {
   }
 }
 
+async function deleteMe(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    await pool.query("BEGIN");
+    try {
+      const userQ = await pool.query("SELECT id, email FROM users WHERE id = $1 LIMIT 1", [userId]);
+      const user = userQ.rows[0];
+      if (!user) {
+        await pool.query("ROLLBACK");
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Explicitly remove user-owned artifacts so the account is fully purged.
+      await pool.query("DELETE FROM scans WHERE user_id = $1", [userId]);
+      await pool.query("DELETE FROM api_keys WHERE user_id = $1", [userId]);
+      await pool.query("DELETE FROM subscriptions WHERE user_id = $1", [userId]);
+      await pool.query("DELETE FROM team_members WHERE user_id = $1", [userId]);
+      // Cascades remove owned teams + dependent rows (members/invites/team subscriptions).
+      await pool.query("DELETE FROM users WHERE id = $1", [userId]);
+      await pool.query("COMMIT");
+    } catch (txError) {
+      await pool.query("ROLLBACK");
+      throw txError;
+    }
+
+    clearAuthCookie(res);
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error("[auth] delete account failed", {
+      userId: req.user?.id || null,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return next(error);
+  }
+}
+
 module.exports = {
   signup,
   login,
@@ -373,5 +429,6 @@ module.exports = {
   getMe,
   updateMe,
   changePassword,
+  deleteMe,
   issueAuthSession,
 };

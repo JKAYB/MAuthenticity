@@ -112,6 +112,7 @@ export type MeResponse = {
   selectedPlan: string;
   plan_selected: boolean;
   planSelected: boolean;
+  onboardingSkipped?: boolean;
   must_change_password: boolean;
   subscriptionStatus: "active" | "expired" | "none";
   scanLimit: number | null;
@@ -163,6 +164,12 @@ export async function changePassword(body: {
   return apiJson<{ ok: boolean }>("/me/password", {
     method: "PATCH",
     body: JSON.stringify(body),
+  });
+}
+
+export async function deleteMyAccount(): Promise<{ ok: boolean }> {
+  return apiJson<{ ok: boolean }>("/me", {
+    method: "DELETE",
   });
 }
 
@@ -232,7 +239,15 @@ export async function addTeamMember(email: string): Promise<{
   });
 }
 
-export async function acceptTeamInvite(token: string): Promise<{ ok: boolean; status: "accepted" }> {
+export async function acceptTeamInvite(token: string): Promise<{
+  ok: boolean;
+  status: "accepted";
+  organizationId: string | null;
+  organizationName: string | null;
+  organizationPlan: string | null;
+  planSelected: boolean;
+  onboardingSkipped: boolean;
+}> {
   return apiJson("/access/team/invites/accept", {
     method: "POST",
     body: JSON.stringify({ token }),
@@ -244,6 +259,26 @@ export async function declineTeamInvite(token: string): Promise<{ ok: boolean; s
     method: "POST",
     body: JSON.stringify({ token }),
   });
+}
+
+export type InviteLookupResponse = {
+  ok: true;
+  invite: {
+    id: string;
+    email: string;
+    role: string;
+    status: "pending";
+    expires_at: string | null;
+    team: { id: string; name: string | null } | null;
+    organizationName: string | null;
+    canAccept: boolean;
+    canDecline: boolean;
+  };
+  hasAccount: boolean;
+};
+
+export async function lookupTeamInvite(token: string): Promise<InviteLookupResponse> {
+  return apiJson<InviteLookupResponse>(`/access/team/invites/lookup?token=${encodeURIComponent(token)}`);
 }
 
 export async function resendTeamInvite(
