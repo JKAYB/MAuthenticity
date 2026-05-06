@@ -66,7 +66,7 @@ function Landing() {
 }
 `}</style>
 
-      <div className="grid-bg absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
+      <div className="pointer-events-none grid-bg absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
 
       <div
         className={

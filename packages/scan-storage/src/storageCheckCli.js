@@ -19,5 +19,5 @@ if (r.ok) {
     line.issues.push(e.message || String(e));
   }
 }
-console.log(JSON.stringify(line, null, 2));
+console.info(JSON.stringify(line, null, 2));
 process.exit(r.ok ? 0 : 1);

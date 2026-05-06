@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
@@ -12,8 +12,13 @@ const headerCtaClassName =
   "mobile-tap-fix inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-primary to-accent px-3 py-1.5 text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] transition hover:scale-[1.02]";
 
 export function MarketingHeader({ currentPage }: MarketingHeaderProps) {
+  const navigate = useNavigate();
   const homeCurrent = currentPage === "home";
   const howCurrent = currentPage === "how-it-works";
+
+  const goToLogin = () => {
+    navigate({ to: "/login" });
+  };
 
   return (
     <header className="relative z-50 mx-auto max-w-6xl px-6 py-6">
@@ -56,7 +61,17 @@ export function MarketingHeader({ currentPage }: MarketingHeaderProps) {
 
         <div className="flex items-center gap-2 md:hidden">
           <ThemeToggle />
-          <Link to="/login" className={headerCtaClassName} aria-label="Sign in">
+          <Link
+            to="/login"
+            className={`${headerCtaClassName} touch-manipulation relative z-[60]`}
+            aria-label="Sign in"
+            onTouchEnd={() => {
+              goToLogin();
+            }}
+            onClick={() => {
+              goToLogin();
+            }}
+          >
             Sign in
           </Link>
         </div>

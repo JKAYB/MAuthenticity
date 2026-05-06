@@ -330,7 +330,7 @@ async function listOrphanLocalFilesUnderUploadBase(uploadRootAbs, referencedLega
 }
 
 function printAuditHelp() {
-  console.log(`audit-scan-upload-storage — post-migration audit for upload scan rows + optional orphan files.
+  console.info(`audit-scan-upload-storage — post-migration audit for upload scan rows + optional orphan files.
 
 Usage:
   dotenv -e .env -- node apps/api/src/scripts/audit-scan-upload-storage.js [options]

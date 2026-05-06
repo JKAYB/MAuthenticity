@@ -189,7 +189,7 @@ function buildCandidateQuery(filters) {
 }
 
 function printHelp() {
-  console.log(`migrate-local-uploads-to-s3 — copy legacy local upload files to S3 and update scan rows.
+  console.info(`migrate-local-uploads-to-s3 — copy legacy local upload files to S3 and update scan rows.
 
 Usage:
   dotenv -e .env -- node apps/api/src/scripts/migrate-local-uploads-to-s3.js [options]

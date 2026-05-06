@@ -152,7 +152,7 @@ function buildS3UploadCleanupQuery(filters) {
 }
 
 function printCleanupHelp() {
-  console.log(`cleanup-local-upload-files — delete legacy on-disk copies for S3-backed upload rows (guarded).
+  console.info(`cleanup-local-upload-files — delete legacy on-disk copies for S3-backed upload rows (guarded).
 
 Default: dry-run only (logs proposed deletions). No file is removed unless you pass --execute.
 

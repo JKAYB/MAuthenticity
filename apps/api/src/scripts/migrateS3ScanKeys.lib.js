@@ -133,7 +133,7 @@ function classifyRowForS3StructuredMigration(row, objectStoragePrefix) {
 }
 
 function printMigrateS3KeysHelp() {
-  console.log(`migrate-s3-scan-keys-to-structured-layout — copy existing S3 originals into the structured key layout.
+  console.info(`migrate-s3-scan-keys-to-structured-layout — copy existing S3 originals into the structured key layout.
 
 Usage:
   dotenv -e .env -- node apps/api/src/scripts/migrate-s3-scan-keys-to-structured-layout.js [options]
