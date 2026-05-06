@@ -250,9 +250,9 @@ function ScanDetail() {
 
           {/* Content Section */}
           <div className="flex-1 text-center md:text-left">
-            <h1 className="font-display text-lg font-bold tracking-tight leading-snug break-all overflow-hidden sm:text-3xl md:text-4xl">
+            <h2 className="font-display text-sm font-bold tracking-tight leading-snug break-all overflow-hidden sm:text-xl md:text-2xl">
               {scan.title}
-            </h1>
+            </h2>
 
             <p className="mt-1.5 max-w-full text-xs leading-relaxed opacity-90 sm:mt-2 sm:max-w-2xl sm:text-sm">
               {topSummary}
