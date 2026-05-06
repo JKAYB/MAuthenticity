@@ -14,7 +14,14 @@ function resendApiKey() {
   return String(process.env.RESEND_API_KEY || "").trim();
 }
 
-async function sendTeamInviteEmail({ to, inviteUrl, teamName, invitedByEmail }) {
+async function sendTeamInviteEmail({
+  to,
+  inviteUrl,
+  inviteDeclineUrl,
+  teamName,
+  invitedByEmail,
+  inviteTokenPreview,
+}) {
   const recipient = String(to || "").trim();
   if (!recipient) {
     throw new Error("Invite email recipient is required");
@@ -22,8 +29,8 @@ async function sendTeamInviteEmail({ to, inviteUrl, teamName, invitedByEmail }) 
 
   const from = inviteFromAddress();
   const apiKey = resendApiKey();
-  const subject = "You're invited to join a team on MediaAuth";
-  const safeTeamName = String(teamName || "MediaAuth Team").trim() || "MediaAuth Team";
+  const subject = "You're invited to join a team on MAuthenticity";
+  const safeTeamName = String(teamName || "MAuthenticity Team").trim() || "MAuthenticity Team";
   const safeInviter = String(invitedByEmail || "a team owner").trim() || "a team owner";
 
   if (!apiKey || !from) {
@@ -40,6 +47,12 @@ async function sendTeamInviteEmail({ to, inviteUrl, teamName, invitedByEmail }) 
     hasKey: !!process.env.RESEND_API_KEY,
     from: process.env.INVITE_EMAIL_FROM,
   });
+  const declineUrl = String(inviteDeclineUrl || `${inviteUrl}&action=decline`);
+  console.info("[invite.email] sending", {
+    to: recipient,
+    inviteUrl,
+    token: String(inviteTokenPreview || "(unknown)"),
+  });
   await resend.emails.send({
     from,
     to: recipient,
@@ -54,7 +67,7 @@ async function sendTeamInviteEmail({ to, inviteUrl, teamName, invitedByEmail }) 
   
         <p style="margin:0 0 16px;color:#444;">
           <strong>${safeInviter}</strong> invited you to join
-          <strong>${safeTeamName}</strong> on MediaAuth.
+          <strong>${safeTeamName}</strong> on MAuthenticity.
         </p>
   
         <div style="margin:20px 0;text-align:center;">
@@ -65,7 +78,7 @@ async function sendTeamInviteEmail({ to, inviteUrl, teamName, invitedByEmail }) 
         </div>
   
         <div style="margin:10px 0;text-align:center;">
-          <a href="${inviteUrl}&action=decline"
+          <a href="${declineUrl}"
             style="display:inline-block;padding:10px 16px;background:#f3f4f6;color:#111;text-decoration:none;border-radius:6px;font-weight:500;">
             Decline
           </a>
@@ -89,12 +102,13 @@ async function sendTeamInviteEmail({ to, inviteUrl, teamName, invitedByEmail }) 
     </div>
   `,
     text: [
-      "You're invited to join a team on MediaAuth",
+      "You're invited to join a team on MAuthenticity",
       "",
       `Team: ${safeTeamName}`,
       `Invited by: ${safeInviter}`,
       "",
       `Accept invitation: ${inviteUrl}`,
+      `Decline invitation: ${declineUrl}`,
       "",
       "This invitation expires in 7 days.",
     ].join("\n"),

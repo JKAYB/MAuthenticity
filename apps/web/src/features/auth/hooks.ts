@@ -66,6 +66,13 @@ export function useMe(): UseQueryResult<MeResponse, Error> {
     enabled: !liveDemo,
   });
 }
+export function useMeWithEnabled(enabled: boolean): UseQueryResult<MeResponse, Error> {
+  const liveDemo = useSyncExternalStore(subscribeLiveDemo, getLiveDemoSnapshot, () => false);
+  return useQuery({
+    ...meQueryOptions(),
+    enabled: !liveDemo && enabled,
+  });
+}
 
 export async function fetchFreshMe(queryClient: QueryClient) {
   return queryClient.fetchQuery({

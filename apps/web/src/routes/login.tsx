@@ -1,19 +1,18 @@
 import {
   createFileRoute,
-  isRedirect,
   Link,
-  redirect,
   useNavigate,
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, ArrowRight, Github, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
-import { prefetchMe, useLogin, useSignup } from "@/features/auth/hooks";
+import { fetchFreshMe, useLogin, useSignup } from "@/features/auth/hooks";
 import LiquidEther from "../components/LiquidEtherWithRef";
 import BorderGlow from "@/components/BorderGlow";
 import { useTheme } from "@/hooks/use-theme";
@@ -23,7 +22,7 @@ import {
   LANDING_FLUID_LITE_BASE,
   LANDING_STATIC_FLUID_FALLBACK_CLASS,
 } from "@/lib/landing-fluid-ether-props";
-import { apiBase } from "@/lib/api";
+import { acceptTeamInvite, apiBase, lookupTeamInvite } from "@/lib/api";
 
 function startGithubOAuth() {
   window.location.assign(`${apiBase()}/auth/github`);
@@ -33,30 +32,51 @@ function startGoogleOAuth() {
   window.location.assign(`${apiBase()}/auth/google`);
 }
 
+function tokenPreview(token?: string) {
+  const raw = String(token || "");
+  if (!raw) return "(empty)";
+  if (raw.length <= 12) return raw;
+  return `${raw.slice(0, 6)}...${raw.slice(-6)}`;
+}
+
+export function resolvePostAuthTarget(params: {
+  isLogin: boolean;
+  redirectTo?: string;
+  inviteAction?: string;
+  inviteToken?: string;
+}): { to: string; search?: { mode: "onboarding" } } {
+  const isInviteSignup = !params.isLogin && params.inviteAction === "accept" && Boolean(params.inviteToken);
+  if (!params.isLogin && !isInviteSignup) {
+    return { to: "/plans", search: { mode: "onboarding" } };
+  }
+  if (isInviteSignup) {
+    return { to: "/dashboard" };
+  }
+  return {
+    to: params.redirectTo && params.redirectTo.startsWith("/") ? params.redirectTo : "/dashboard",
+  };
+}
+
 export const Route = createFileRoute("/login")({
   validateSearch: (
     search: Record<string, unknown>
-  ): { redirect?: string; auth?: string; provider?: string } => ({
+  ): {
+    redirect?: string;
+    auth?: string;
+    provider?: string;
+    inviteToken?: string;
+    inviteEmail?: string;
+    inviteAction?: string;
+    lockEmail?: string;
+  } => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
     auth: typeof search.auth === "string" ? search.auth : undefined,
     provider: typeof search.provider === "string" ? search.provider : undefined,
+    inviteToken: typeof search.inviteToken === "string" ? search.inviteToken : undefined,
+    inviteEmail: typeof search.inviteEmail === "string" ? search.inviteEmail : undefined,
+    inviteAction: typeof search.inviteAction === "string" ? search.inviteAction : undefined,
+    lockEmail: typeof search.lockEmail === "string" ? search.lockEmail : undefined,
   }),
-  beforeLoad: async () => {
-    if (typeof window === "undefined") return;
-    try {
-      const me = await prefetchMe();
-      const target =
-        me.must_change_password
-          ? "/change-password"
-          : (me.planSelected ?? me.plan_selected)
-            ? "/dashboard"
-            : "/plans";
-      console.info("[auth] redirect target", target);
-      throw redirect({ to: target as "/dashboard" | "/plans" | "/change-password" });
-    } catch (e) {
-      if (isRedirect(e)) throw e;
-    }
-  },
   head: () => ({
     meta: [
       { title: "Sign in — MAuthenticity" },
@@ -85,6 +105,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
   const [showFluid, setShowFluid] = useState(false);
   const navigate = useNavigate();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const loginMutation = useLogin();
   const signupMutation = useSignup();
   const isLogin = mode === "login";
@@ -123,6 +144,23 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
     },
   });
   const [oauthFailureShown, setOauthFailureShown] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+  const inviteContext = useRouterState({
+    select: (s) => {
+      const q = s.location.search as {
+        inviteToken?: string;
+        inviteEmail?: string;
+        inviteAction?: string;
+        lockEmail?: string;
+      };
+      return {
+        inviteToken: typeof q?.inviteToken === "string" ? q.inviteToken : undefined,
+        inviteEmail: typeof q?.inviteEmail === "string" ? q.inviteEmail : undefined,
+        inviteAction: typeof q?.inviteAction === "string" ? q.inviteAction : undefined,
+        lockEmail: q?.lockEmail === "1",
+      };
+    },
+  });
 
   useEffect(() => {
     if (oauthFailureShown) return;
@@ -136,27 +174,75 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
     toast.error(`Login failed with ${providerLabel}. Please try again.`);
     setOauthFailureShown(true);
   }, [authFailure.auth, authFailure.provider, oauthFailureShown]);
+  useEffect(() => {
+    if (!inviteContext.inviteEmail) return;
+    setEmail(inviteContext.inviteEmail);
+  }, [inviteContext.inviteEmail]);
+  useEffect(() => {
+    let cancelled = false;
+    async function loadInvitePreview() {
+      if (!inviteContext.inviteToken) {
+        if (!cancelled) setInviteMessage(null);
+        return;
+      }
+      try {
+        const lookup = await lookupTeamInvite(inviteContext.inviteToken);
+        if (cancelled) return;
+        setEmail((prev) => prev || lookup.invite.email);
+        const orgLabel =
+          String(lookup.invite.organizationName || "").trim() ||
+          String(lookup.invite.team?.name || "").trim() ||
+          "your team";
+        setInviteMessage(`You’re accepting an invitation to join ${orgLabel}.`);
+      } catch {
+        if (cancelled) return;
+        setInviteMessage("This invitation link is invalid or expired.");
+      }
+    }
+    void loadInvitePreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteContext.inviteToken]);
 
   const busy = loginMutation.isPending || signupMutation.isPending;
+  const lockInviteEmail =
+    !isLogin && (Boolean(inviteContext.inviteToken) || (inviteContext.lockEmail && Boolean(inviteContext.inviteEmail)));
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      console.info("[auth.submit]", {
+        mode,
+        inviteAction: inviteContext.inviteAction || null,
+        inviteToken: tokenPreview(inviteContext.inviteToken),
+        redirectTo: redirectTo || null,
+      });
       if (isLogin) {
         await loginMutation.mutateAsync({ email, password });
         toast.success("Signed in");
       } else {
         await signupMutation.mutateAsync({ email, password });
         await loginMutation.mutateAsync({ email, password });
+        if (inviteContext.inviteAction === "accept" && inviteContext.inviteToken) {
+          console.info("[auth.submit] accepting invite", {
+            token: tokenPreview(inviteContext.inviteToken),
+          });
+          await acceptTeamInvite(inviteContext.inviteToken);
+          toast.success("Invitation accepted.");
+        }
         toast.success("Account created");
       }
+      await fetchFreshMe(queryClient);
       await router.invalidate();
-      const target = isLogin
-        ? redirectTo && redirectTo.startsWith("/")
-          ? redirectTo
-          : "/dashboard"
-        : "/plans";
-      navigate({ to: target });
+      const target = resolvePostAuthTarget({
+        isLogin,
+        redirectTo,
+        inviteAction: inviteContext.inviteAction,
+        inviteToken: inviteContext.inviteToken,
+      });
+      console.info("[auth.submit] post-auth redirect", target);
+      navigate(target.search ? { to: target.to, search: target.search } : { to: target.to });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     }
@@ -265,6 +351,9 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
                     ? "Sign in to continue to your workspace."
                     : "Start verifying media in under a minute."}
                 </p>
+                {inviteMessage ? (
+                  <p className="mt-2 text-xs text-muted-foreground">{inviteMessage}</p>
+                ) : null}
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -310,6 +399,7 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
                     placeholder="you@company.com"
                     className="auth-input"
                     autoComplete="email"
+                    disabled={lockInviteEmail}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />

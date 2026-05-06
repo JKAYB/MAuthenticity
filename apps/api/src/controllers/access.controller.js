@@ -28,9 +28,77 @@ function createInviteToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
-function inviteUrlForToken(rawToken) {
+function tokenPreview(token) {
+  const raw = String(token || "");
+  if (!raw) return "(empty)";
+  if (raw.length <= 12) return raw;
+  return `${raw.slice(0, 6)}...${raw.slice(-6)}`;
+}
+
+function inviteUrlForToken(rawToken, action = "accept") {
   const appBase = String(process.env.WEB_APP_URL || "http://localhost:5173").replace(/\/+$/, "");
-  return `${appBase}/accept-invite?token=${encodeURIComponent(rawToken)}`;
+  const safeAction = action === "decline" ? "decline" : "accept";
+  return `${appBase}/accept-invite?token=${encodeURIComponent(rawToken)}&action=${safeAction}`;
+}
+
+async function lookupTeamInvite(req, res, next) {
+  try {
+    const token = String(req.query?.token || "").trim();
+    if (!token) return res.status(400).json({ error: "token is required" });
+    console.info("[invite.lookup] request", { token: tokenPreview(token) });
+    const tokenHash = sha256(token);
+    const inviteQ = await pool.query(
+      `SELECT id, team_id, email, role, status, expires_at
+       FROM team_member_invites
+       WHERE token_hash = $1
+       LIMIT 1`,
+      [tokenHash],
+    );
+    const invite = inviteQ.rows[0];
+    if (!invite) {
+      console.info("[invite.lookup] result", { found: false, token: tokenPreview(token) });
+      return res.status(404).json({ error: "invite_not_found" });
+    }
+    if (invite.status !== "pending") {
+      if (invite.status === "expired") {
+        return res.status(409).json({ error: "invite_expired" });
+      }
+      return res.status(409).json({ error: "invite_not_pending", status: invite.status });
+    }
+    if (invite.expires_at && new Date(invite.expires_at).getTime() <= Date.now()) {
+      await pool.query(`UPDATE team_member_invites SET status = 'expired', updated_at = NOW() WHERE id = $1`, [invite.id]);
+      return res.status(409).json({ error: "invite_expired" });
+    }
+    const teamQ = await pool.query("SELECT id, name FROM teams WHERE id = $1 LIMIT 1", [invite.team_id]);
+    const rawTeam = teamQ.rows[0] || null;
+    const resolvedOrganizationName =
+      (rawTeam?.name && String(rawTeam.name).trim()) || "MediaAuth Team";
+    const invitedUserQ = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [invite.email]);
+    console.info("[invite.lookup] result", {
+      found: true,
+      token: tokenPreview(token),
+      status: invite.status,
+      inviteEmail: invite.email,
+      hasAccount: Boolean(invitedUserQ.rows[0]),
+    });
+    return res.json({
+      ok: true,
+      invite: {
+        id: invite.id,
+        email: invite.email,
+        role: invite.role || "team_member",
+        status: invite.status,
+        expires_at: invite.expires_at,
+        team: rawTeam ? { ...rawTeam, name: resolvedOrganizationName } : null,
+        organizationName: resolvedOrganizationName,
+        canAccept: true,
+        canDecline: true,
+      },
+      hasAccount: Boolean(invitedUserQ.rows[0]),
+    });
+  } catch (error) {
+    return next(error);
+  }
 }
 
 async function expirePendingInvitesForTeam(teamId) {
@@ -210,14 +278,6 @@ async function addTeamMember(req, res, next) {
       [teamCheck.effectivePlan.teamId, email],
     );
     const existingInvite = existingInviteQ.rows[0] || null;
-    if (existingInvite && existingInvite.status === "pending" && !resend) {
-      return res.status(200).json({
-        ok: true,
-        status: "invitation_sent",
-        invite: existingInvite,
-      });
-    }
-
     const rawToken = createInviteToken();
     const tokenHash = sha256(rawToken);
     await pool.query(
@@ -249,12 +309,22 @@ async function addTeamMember(req, res, next) {
       teamCheck.effectivePlan.teamId,
     ]);
     const teamName = teamInfoQ.rows[0]?.name || "MediaAuth Team";
+    console.info("[invite.create]", {
+      invitedEmail: email,
+      inviteId: inviteQ.rows[0]?.id || null,
+      token: tokenPreview(rawToken),
+      status: "pending",
+      reusedExistingInvite: Boolean(existingInvite),
+      requestedResend: resend,
+    });
     try {
       await sendTeamInviteEmail({
         to: email,
-        inviteUrl: inviteUrlForToken(rawToken),
+        inviteUrl: inviteUrlForToken(rawToken, "accept"),
+        inviteDeclineUrl: inviteUrlForToken(rawToken, "decline"),
         teamName,
         invitedByEmail: req.user?.email || "",
+        inviteTokenPreview: tokenPreview(rawToken),
       });
     } catch (emailError) {
       return res.status(502).json({
@@ -277,6 +347,10 @@ async function acceptTeamInvite(req, res, next) {
     const token = String(req.body?.token || "").trim();
     if (!token) return res.status(400).json({ error: "token is required" });
     if (!req.user?.id) return res.status(401).json({ error: "requires_auth" });
+    console.info("[invite.accept] request", {
+      token: tokenPreview(token),
+      userId: req.user.id,
+    });
     const tokenHash = sha256(token);
     const inviteQ = await pool.query(
       `SELECT id, team_id, email, role, status, expires_at
@@ -286,7 +360,15 @@ async function acceptTeamInvite(req, res, next) {
       [tokenHash],
     );
     const invite = inviteQ.rows[0];
-    if (!invite) return res.status(404).json({ error: "invite_not_found" });
+    if (!invite) {
+      console.info("[invite.accept] result", { found: false, token: tokenPreview(token) });
+      return res.status(404).json({ error: "invite_not_found" });
+    }
+    console.info("[invite.accept] found", {
+      inviteId: invite.id,
+      status: invite.status,
+      inviteEmail: invite.email,
+    });
     if (invite.status !== "pending") return res.status(409).json({ error: "invite_not_pending" });
     if (invite.expires_at && new Date(invite.expires_at).getTime() <= Date.now()) {
       await pool.query(`UPDATE team_member_invites SET status = 'expired', updated_at = NOW() WHERE id = $1`, [invite.id]);
@@ -296,7 +378,7 @@ async function acceptTeamInvite(req, res, next) {
     const me = meQ.rows[0];
     if (!me) return res.status(404).json({ error: "user_not_found" });
     if (normalizeEmail(me.email) !== normalizeEmail(invite.email)) {
-      return res.status(403).json({ error: "email_mismatch" });
+      return res.status(403).json({ error: "account_mismatch" });
     }
     await pool.query("BEGIN");
     try {
@@ -313,7 +395,22 @@ async function acceptTeamInvite(req, res, next) {
         [invite.id],
       );
       await pool.query("COMMIT");
-      return res.json({ ok: true, status: "accepted" });
+      console.info("[invite.accept] success", {
+        inviteId: invite.id,
+        tokenHashCleared: true,
+      });
+      const effectivePlan = await getEffectivePlan(me.id);
+      const teamQ = await pool.query("SELECT id, name FROM teams WHERE id = $1 LIMIT 1", [invite.team_id]);
+      const team = teamQ.rows[0] || null;
+      return res.json({
+        ok: true,
+        status: "accepted",
+        organizationId: team?.id || null,
+        organizationName: team?.name || null,
+        organizationPlan: effectivePlan.planCode || null,
+        planSelected: Boolean(effectivePlan.planSelected || effectivePlan.teamId),
+        onboardingSkipped: Boolean(effectivePlan.teamId && !effectivePlan.planSelected),
+      });
     } catch (txError) {
       await pool.query("ROLLBACK");
       throw txError;
@@ -407,9 +504,11 @@ async function resendTeamInvite(req, res, next) {
     try {
       await sendTeamInviteEmail({
         to: inviteInfo?.email || "",
-        inviteUrl: inviteUrlForToken(rawToken),
+        inviteUrl: inviteUrlForToken(rawToken, "accept"),
+        inviteDeclineUrl: inviteUrlForToken(rawToken, "decline"),
         teamName,
         invitedByEmail: req.user?.email || "",
+        inviteTokenPreview: tokenPreview(rawToken),
       });
     } catch (emailError) {
       return res.status(502).json({
@@ -445,6 +544,7 @@ module.exports = {
   selectPlan,
   getAccessState,
   getMyTeam,
+  lookupTeamInvite,
   addTeamMember,
   acceptTeamInvite,
   declineTeamInvite,

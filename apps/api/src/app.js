@@ -5,7 +5,7 @@ const authRoutes = require("./routes/auth.routes");
 const accessRoutes = require("./routes/access.routes");
 const scanRoutes = require("./routes/scan.routes");
 const scanAdminRoutes = require("./routes/scanAdmin.routes");
-const { getMe, updateMe, changePassword } = require("./controllers/auth.controller");
+const { getMe, updateMe, changePassword, deleteMe } = require("./controllers/auth.controller");
 const { authMiddleware, requireUser } = require("./middleware/auth.middleware");
 const { internalOpsMiddleware } = require("./middleware/internalOps.middleware");
 const { privateCacheNoStore } = require("./middleware/privateCache.middleware");
@@ -78,6 +78,7 @@ function createApp() {
   app.get("/me", authMiddleware, requireUser, privateCacheNoStore, getMe);
   app.patch("/me", authMiddleware, requireUser, privateCacheNoStore, updateMe);
   app.patch("/me/password", authMiddleware, requireUser, privateCacheNoStore, changePassword);
+  app.delete("/me", authMiddleware, requireUser, privateCacheNoStore, deleteMe);
 
   app.use("/auth", privateCacheNoStore, authRoutes);
   app.use("/access", privateCacheNoStore, accessRoutes);
