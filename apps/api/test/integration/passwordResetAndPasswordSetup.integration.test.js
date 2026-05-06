@@ -73,6 +73,7 @@ d("password setup and reset flow", () => {
     process.env.GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || "http://localhost/google/callback";
     process.env.PASSWORD_RESET_REQUEST_WINDOW_MS = "600000";
     process.env.PASSWORD_RESET_REQUEST_MAX_ATTEMPTS = "1";
+    process.env.ENABLE_PAID_PLANS = process.env.ENABLE_PAID_PLANS || "false";
     configurePassport();
     // eslint-disable-next-line global-require
     pool = require("../../src/db/pool").pool;
@@ -307,5 +308,32 @@ d("password setup and reset flow", () => {
     });
     assert.ok(oauthRes.user && oauthRes.user.id);
     assert.equal(oauthRes.user.id, userId);
+  });
+
+  it("allows free plan and blocks paid plans when feature flag is false", async () => {
+    const email = `plan-flag-${crypto.randomBytes(6).toString("hex")}@example.test`;
+    const userId = uuidv4();
+    createdUserIds.push(userId);
+    await pool.query(
+      `INSERT INTO users (id, email, password_hash, plan, plan_selected, must_change_password)
+       VALUES ($1, $2, $3, 'free', FALSE, FALSE)`,
+      [userId, email, await bcrypt.hash("InitialPass1", 12)]
+    );
+    const cookie = authCookieForUser(userId, email);
+
+    const freeSelect = await fetchJson(`${baseUrl}/access/select`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ planCode: "free" }),
+    });
+    assert.equal(freeSelect.res.status, 200, JSON.stringify(freeSelect.body));
+
+    const paidSelect = await fetchJson(`${baseUrl}/access/select`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ planCode: "team" }),
+    });
+    assert.equal(paidSelect.res.status, 403, JSON.stringify(paidSelect.body));
+    assert.equal(paidSelect.body.error, "Paid plans are not available yet.");
   });
 });

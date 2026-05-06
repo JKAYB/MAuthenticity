@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const { pool } = require("../db/pool");
 const { normalizeEmail } = require("../utils/normalizeEmail");
 const { sendTeamInviteEmail } = require("../services/email.service");
+const { isPlanSelectionAllowed } = require("../services/planSelectionPolicy.service");
 const {
   canManageTeam,
   canManageAdmins,
@@ -130,6 +131,10 @@ async function selectPlan(req, res, next) {
     if (!allowed.has(planCode)) {
       return res.status(400).json({ error: "Invalid plan selection" });
     }
+    const policy = isPlanSelectionAllowed(planCode);
+    if (!policy.ok) {
+      return res.status(policy.status || 403).json({ error: policy.error || "Plan selection is not available." });
+    }
 
     const effectiveBefore = await getEffectivePlan(req.user.id);
     if (effectiveBefore.teamRole && !isOwner(effectiveBefore.teamRole)) {
@@ -213,7 +218,7 @@ async function getMyTeam(req, res, next) {
   try {
     const effectivePlan = await getEffectivePlan(req.user.id);
     if (!effectivePlan.teamId) {
-      return res.json({ team: null, members: [], invites: [] });
+      return res.status(403).json({ error: "not_in_team" });
     }
     await expirePendingInvitesForTeam(effectivePlan.teamId);
     const teamQ = await pool.query("SELECT id, owner_user_id, name, created_at FROM teams WHERE id = $1", [

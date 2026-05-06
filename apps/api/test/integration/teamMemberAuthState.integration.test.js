@@ -79,6 +79,7 @@ d("team invitation flow", () => {
   const createdUserIds = [];
 
   before(async () => {
+    process.env.ENABLE_PAID_PLANS = process.env.ENABLE_PAID_PLANS || "true";
     // eslint-disable-next-line global-require
     pool = require("../../src/db/pool").pool;
     const { startTestServer } = require("./httpServer");
