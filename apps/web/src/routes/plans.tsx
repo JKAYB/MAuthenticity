@@ -25,6 +25,9 @@ const plans = [
 ] as const;
 
 type PlanCode = (typeof plans)[number]["code"];
+const paidPlansEnabled = String(import.meta.env.VITE_ENABLE_PAID_PLANS || "").toLowerCase() === "true";
+const isPaidPlanCode = (planCode: PlanCode) =>
+  planCode === "individual_monthly" || planCode === "individual_yearly" || planCode === "team";
 
 export const Route = createFileRoute("/plans")({
   validateSearch: (search: Record<string, unknown>): { mode?: PlansMode } => ({
@@ -164,10 +167,11 @@ function PlansPage() {
         <div className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {plans.map((plan) => {
             const state = getPlanCardState(me, plan.code, mode);
+            const paidBlocked = !paidPlansEnabled && isPaidPlanCode(plan.code);
             const isBusy = busyCode === plan.code;
             const isDisabled = isOnboarding
-              ? state.disabled || continuing
-              : busyCode !== null || state.disabled;
+              ? state.disabled || continuing || paidBlocked
+              : busyCode !== null || state.disabled || paidBlocked;
             const highlighted = isOnboarding
               ? onboardingPick === plan.code ||
                 (onboardingPick === null && plan.code === "individual_yearly" && !me)
@@ -187,6 +191,10 @@ function PlansPage() {
                 {state.badge ? (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-foreground px-3 py-1 text-xs font-semibold text-background shadow-lg">
                     {state.badge}
+                  </div>
+                ) : paidBlocked ? (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground shadow-lg">
+                    Coming soon
                   </div>
                 ) : highlighted ? (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-lg">
@@ -244,6 +252,8 @@ function PlansPage() {
                     </span>
                   ) : isOnboarding && onboardingPick === plan.code ? (
                     "Selected"
+                  ) : paidBlocked ? (
+                    "Coming soon"
                   ) : (
                     state.buttonLabel
                   )}
