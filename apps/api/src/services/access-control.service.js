@@ -8,6 +8,34 @@ const PLAN_CODE_FREE = "free";
 const PLAN_CODE_TEAM = "team";
 const PLAN_CODE_INDIVIDUAL_MONTHLY = "individual_monthly";
 const PLAN_CODE_INDIVIDUAL_YEARLY = "individual_yearly";
+const TEAM_ROLE_OWNER = "owner";
+const TEAM_ROLE_ADMIN = "admin";
+const TEAM_ROLE_MEMBER = "member";
+
+function normalizeTeamRole(rawRole) {
+  const role = String(rawRole || "").trim().toLowerCase();
+  if (role === TEAM_ROLE_OWNER || role === "team_owner") return TEAM_ROLE_OWNER;
+  if (role === TEAM_ROLE_ADMIN || role === "team_admin") return TEAM_ROLE_ADMIN;
+  if (role === TEAM_ROLE_MEMBER || role === "team_member") return TEAM_ROLE_MEMBER;
+  return TEAM_ROLE_MEMBER;
+}
+
+function isOwner(teamRole) {
+  return normalizeTeamRole(teamRole) === TEAM_ROLE_OWNER;
+}
+
+function isAdmin(teamRole) {
+  return normalizeTeamRole(teamRole) === TEAM_ROLE_ADMIN;
+}
+
+function canManageMembers(teamRole) {
+  const role = normalizeTeamRole(teamRole);
+  return role === TEAM_ROLE_OWNER || role === TEAM_ROLE_ADMIN;
+}
+
+function canManageAdmins(teamRole) {
+  return normalizeTeamRole(teamRole) === TEAM_ROLE_OWNER;
+}
 
 function isPaidPlanCode(planCode) {
   return (
@@ -45,17 +73,17 @@ async function getTeamContext(userId) {
     [userId],
   );
   if (ownerTeamQ.rows[0]) {
-    return { teamId: ownerTeamQ.rows[0].id, teamRole: "team_owner" };
+    return { teamId: ownerTeamQ.rows[0].id, teamRole: TEAM_ROLE_OWNER };
   }
   const memberQ = await pool.query(
-    `SELECT tm.team_id
+    `SELECT tm.team_id, tm.role
      FROM team_members tm
      WHERE tm.user_id = $1 AND tm.status = 'active'
      LIMIT 1`,
     [userId],
   );
   if (memberQ.rows[0]) {
-    return { teamId: memberQ.rows[0].team_id, teamRole: "team_member" };
+    return { teamId: memberQ.rows[0].team_id, teamRole: normalizeTeamRole(memberQ.rows[0].role) };
   }
   return { teamId: null, teamRole: null };
 }
@@ -194,8 +222,8 @@ async function canDownloadReport(userId) {
 async function canManageTeam(userId) {
   const effectivePlan = await getEffectivePlan(userId);
   return {
-    ok: effectivePlan.teamRole === "team_owner",
-    reason: effectivePlan.teamRole === "team_owner" ? null : "team_owner_required",
+    ok: canManageMembers(effectivePlan.teamRole),
+    reason: canManageMembers(effectivePlan.teamRole) ? null : "team_manage_members_required",
     effectivePlan,
   };
 }
@@ -205,6 +233,14 @@ module.exports = {
   canStartScan,
   canDownloadReport,
   canManageTeam,
+  normalizeTeamRole,
+  isOwner,
+  isAdmin,
+  canManageMembers,
+  canManageAdmins,
+  TEAM_ROLE_OWNER,
+  TEAM_ROLE_ADMIN,
+  TEAM_ROLE_MEMBER,
   PLAN_CODE_FREE,
   PLAN_CODE_TEAM,
   PLAN_CODE_INDIVIDUAL_MONTHLY,

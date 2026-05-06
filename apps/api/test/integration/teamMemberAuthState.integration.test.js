@@ -582,4 +582,307 @@ d("team invitation flow", () => {
       if (idx >= 0) createdUserIds.splice(idx, 1);
     }
   });
+
+  it("team details are visible to all active team members", async () => {
+    const ownerEmail = `owner-team-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const memberEmail = `member-team-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const password = "TeamPass1!";
+
+    await signup(baseUrl, ownerEmail, password);
+    await signup(baseUrl, memberEmail, password);
+
+    const ownerIdQ = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [ownerEmail]);
+    const memberIdQ = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [memberEmail]);
+    const ownerId = ownerIdQ.rows[0].id;
+    const memberId = memberIdQ.rows[0].id;
+    createdUserIds.push(ownerId, memberId);
+
+    const ownerLogin = await login(baseUrl, ownerEmail, password);
+    assert.equal(ownerLogin.res.status, 200, JSON.stringify(ownerLogin.body));
+    const ownerCookie = authCookieFromLoginResponse(ownerLogin);
+
+    const selectTeam = await fetchJson(`${baseUrl}/access/select`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ planCode: "team" }),
+    });
+    assert.equal(selectTeam.res.status, 200, JSON.stringify(selectTeam.body));
+
+    const invite = await fetchJson(`${baseUrl}/access/team/members`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ email: memberEmail }),
+    });
+    assert.equal(invite.res.status, 201, JSON.stringify(invite.body));
+    const inviteId = invite.body.invite?.id;
+    assert.ok(inviteId);
+
+    const rawToken = `team-view-${crypto.randomBytes(8).toString("hex")}`;
+    await pool.query("UPDATE team_member_invites SET token_hash = $2 WHERE id = $1", [inviteId, sha256(rawToken)]);
+
+    const memberLogin = await login(baseUrl, memberEmail, password);
+    assert.equal(memberLogin.res.status, 200, JSON.stringify(memberLogin.body));
+    const memberCookie = authCookieFromLoginResponse(memberLogin);
+    const acceptInvite = await fetchJson(`${baseUrl}/access/team/invites/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: memberCookie },
+      body: JSON.stringify({ token: rawToken }),
+    });
+    assert.equal(acceptInvite.res.status, 200, JSON.stringify(acceptInvite.body));
+
+    const teamDetailsForOwner = await fetchJson(`${baseUrl}/team`, {
+      headers: { Cookie: ownerCookie },
+    });
+    assert.equal(teamDetailsForOwner.res.status, 200, JSON.stringify(teamDetailsForOwner.body));
+    assert.equal(teamDetailsForOwner.body.plan, "team");
+    assert.equal(teamDetailsForOwner.body.owner.email.toLowerCase(), ownerEmail.toLowerCase());
+
+    const teamDetailsForMember = await fetchJson(`${baseUrl}/team`, {
+      headers: { Cookie: memberCookie },
+    });
+    assert.equal(teamDetailsForMember.res.status, 200, JSON.stringify(teamDetailsForMember.body));
+    assert.equal(teamDetailsForMember.body.id, teamDetailsForOwner.body.id);
+    assert.equal(
+      teamDetailsForMember.body.members.some((m) => m.email.toLowerCase() === ownerEmail.toLowerCase() && m.role === "owner"),
+      true
+    );
+    assert.equal(
+      teamDetailsForMember.body.members.some((m) => m.email.toLowerCase() === memberEmail.toLowerCase() && m.role === "member"),
+      true
+    );
+  });
+
+  it("team details expose owner/admin/member roles", async () => {
+    const ownerEmail = `owner-role-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const adminEmail = `admin-role-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const memberEmail = `member-role-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const password = "TeamPass1!";
+
+    await signup(baseUrl, ownerEmail, password);
+    await signup(baseUrl, adminEmail, password);
+    await signup(baseUrl, memberEmail, password);
+
+    const ownerId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [ownerEmail])).rows[0].id;
+    const adminId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [adminEmail])).rows[0].id;
+    const memberId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [memberEmail])).rows[0].id;
+    createdUserIds.push(ownerId, adminId, memberId);
+
+    const ownerLogin = await login(baseUrl, ownerEmail, password);
+    const ownerCookie = authCookieFromLoginResponse(ownerLogin);
+    const selectTeam = await fetchJson(`${baseUrl}/access/select`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ planCode: "team" }),
+    });
+    assert.equal(selectTeam.res.status, 200, JSON.stringify(selectTeam.body));
+    const teamId = selectTeam.body.teamId;
+
+    await pool.query(
+      `INSERT INTO team_members (team_id, user_id, role, status)
+       VALUES ($1, $2, 'admin', 'active'), ($1, $3, 'member', 'active')
+       ON CONFLICT (team_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status`,
+      [teamId, adminId, memberId]
+    );
+
+    const memberLogin = await login(baseUrl, memberEmail, password);
+    const memberCookie = authCookieFromLoginResponse(memberLogin);
+    const details = await fetchJson(`${baseUrl}/team`, { headers: { Cookie: memberCookie } });
+    assert.equal(details.res.status, 200, JSON.stringify(details.body));
+    assert.equal(details.body.members.some((m) => m.email.toLowerCase() === ownerEmail.toLowerCase() && m.role === "owner"), true);
+    assert.equal(details.body.members.some((m) => m.email.toLowerCase() === adminEmail.toLowerCase() && m.role === "admin"), true);
+    assert.equal(details.body.members.some((m) => m.email.toLowerCase() === memberEmail.toLowerCase() && m.role === "member"), true);
+  });
+
+  it("non-team users cannot access /team details", async () => {
+    const email = `solo-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const password = "SoloPass1!";
+    await signup(baseUrl, email, password);
+    const userId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [email])).rows[0].id;
+    createdUserIds.push(userId);
+
+    const loginRes = await login(baseUrl, email, password);
+    const cookie = authCookieFromLoginResponse(loginRes);
+    const details = await fetchJson(`${baseUrl}/team`, { headers: { Cookie: cookie } });
+    assert.equal(details.res.status, 403, JSON.stringify(details.body));
+  });
+
+  it("admin permissions do not exceed owner-only actions", async () => {
+    const ownerEmail = `owner-boundary-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const adminAEmail = `admin-a-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const adminBEmail = `admin-b-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const memberEmail = `member-boundary-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const password = "TeamPass1!";
+
+    await signup(baseUrl, ownerEmail, password);
+    await signup(baseUrl, adminAEmail, password);
+    await signup(baseUrl, adminBEmail, password);
+    await signup(baseUrl, memberEmail, password);
+
+    const ownerId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [ownerEmail])).rows[0].id;
+    const adminAId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [adminAEmail])).rows[0].id;
+    const adminBId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [adminBEmail])).rows[0].id;
+    const memberId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [memberEmail])).rows[0].id;
+    createdUserIds.push(ownerId, adminAId, adminBId, memberId);
+
+    const ownerLogin = await login(baseUrl, ownerEmail, password);
+    const ownerCookie = authCookieFromLoginResponse(ownerLogin);
+    const selectTeam = await fetchJson(`${baseUrl}/access/select`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ planCode: "team" }),
+    });
+    assert.equal(selectTeam.res.status, 200, JSON.stringify(selectTeam.body));
+    const teamId = selectTeam.body.teamId;
+
+    await pool.query(
+      `INSERT INTO team_members (team_id, user_id, role, status)
+       VALUES ($1, $2, 'admin', 'active'), ($1, $3, 'admin', 'active'), ($1, $4, 'member', 'active')
+       ON CONFLICT (team_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status`,
+      [teamId, adminAId, adminBId, memberId]
+    );
+
+    const adminLogin = await login(baseUrl, adminAEmail, password);
+    const adminCookie = authCookieFromLoginResponse(adminLogin);
+
+    const removeOwner = await fetchJson(`${baseUrl}/access/team/members/${ownerId}`, {
+      method: "DELETE",
+      headers: { Cookie: adminCookie },
+    });
+    assert.equal(removeOwner.res.status, 403);
+
+    const removeAdmin = await fetchJson(`${baseUrl}/access/team/members/${adminBId}`, {
+      method: "DELETE",
+      headers: { Cookie: adminCookie },
+    });
+    assert.equal(removeAdmin.res.status, 403);
+
+    const removeMember = await fetchJson(`${baseUrl}/access/team/members/${memberId}`, {
+      method: "DELETE",
+      headers: { Cookie: adminCookie },
+    });
+    assert.equal(removeMember.res.status, 204);
+  });
+
+  it("owner can promote and demote roles", async () => {
+    const ownerEmail = `owner-rolechg-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const memberEmail = `member-rolechg-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const password = "TeamPass1!";
+    await signup(baseUrl, ownerEmail, password);
+    await signup(baseUrl, memberEmail, password);
+    const ownerId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [ownerEmail])).rows[0].id;
+    const memberId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [memberEmail])).rows[0].id;
+    createdUserIds.push(ownerId, memberId);
+    const ownerCookie = authCookieFromLoginResponse(await login(baseUrl, ownerEmail, password));
+    const selectTeam = await fetchJson(`${baseUrl}/access/select`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ planCode: "team" }),
+    });
+    const teamId = selectTeam.body.teamId;
+    await pool.query(
+      `INSERT INTO team_members (team_id, user_id, role, status)
+       VALUES ($1, $2, 'member', 'active')
+       ON CONFLICT (team_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status`,
+      [teamId, memberId]
+    );
+
+    const promote = await fetchJson(`${baseUrl}/team/members/${memberId}/role`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ role: "admin" }),
+    });
+    assert.equal(promote.res.status, 200, JSON.stringify(promote.body));
+    const roleAfterPromote = await pool.query(
+      "SELECT role FROM team_members WHERE team_id=$1 AND user_id=$2 LIMIT 1",
+      [teamId, memberId]
+    );
+    assert.equal(roleAfterPromote.rows[0].role, "admin");
+
+    const demote = await fetchJson(`${baseUrl}/team/members/${memberId}/role`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ role: "member" }),
+    });
+    assert.equal(demote.res.status, 200, JSON.stringify(demote.body));
+    const roleAfterDemote = await pool.query(
+      "SELECT role FROM team_members WHERE team_id=$1 AND user_id=$2 LIMIT 1",
+      [teamId, memberId]
+    );
+    assert.equal(roleAfterDemote.rows[0].role, "member");
+  });
+
+  it("member cannot change roles and non-owner cannot transfer ownership", async () => {
+    const ownerEmail = `owner-transfer-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const adminEmail = `admin-transfer-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const memberEmail = `member-transfer-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const outsiderEmail = `outsider-transfer-${crypto.randomBytes(6).toString("hex")}@t.local`;
+    const password = "TeamPass1!";
+    await signup(baseUrl, ownerEmail, password);
+    await signup(baseUrl, adminEmail, password);
+    await signup(baseUrl, memberEmail, password);
+    await signup(baseUrl, outsiderEmail, password);
+    const ownerId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [ownerEmail])).rows[0].id;
+    const adminId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [adminEmail])).rows[0].id;
+    const memberId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [memberEmail])).rows[0].id;
+    const outsiderId = (await pool.query("SELECT id FROM users WHERE lower(email)=lower($1) LIMIT 1", [outsiderEmail])).rows[0].id;
+    createdUserIds.push(ownerId, adminId, memberId, outsiderId);
+    const ownerCookie = authCookieFromLoginResponse(await login(baseUrl, ownerEmail, password));
+    const adminCookie = authCookieFromLoginResponse(await login(baseUrl, adminEmail, password));
+    const memberCookie = authCookieFromLoginResponse(await login(baseUrl, memberEmail, password));
+    const selectTeam = await fetchJson(`${baseUrl}/access/select`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ planCode: "team" }),
+    });
+    const teamId = selectTeam.body.teamId;
+    await pool.query(
+      `INSERT INTO team_members (team_id, user_id, role, status)
+       VALUES ($1, $2, 'admin', 'active'), ($1, $3, 'member', 'active')
+       ON CONFLICT (team_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status`,
+      [teamId, adminId, memberId]
+    );
+
+    const memberRoleChange = await fetchJson(`${baseUrl}/team/members/${adminId}/role`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: memberCookie },
+      body: JSON.stringify({ role: "member" }),
+    });
+    assert.equal(memberRoleChange.res.status, 403);
+
+    const adminTransfer = await fetchJson(`${baseUrl}/team/transfer-ownership`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify({ newOwnerUserId: memberId }),
+    });
+    assert.equal(adminTransfer.res.status, 403);
+
+    const outsiderTransfer = await fetchJson(`${baseUrl}/team/transfer-ownership`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ newOwnerUserId: outsiderId }),
+    });
+    assert.equal(outsiderTransfer.res.status, 400);
+
+    const ownerTransfer = await fetchJson(`${baseUrl}/team/transfer-ownership`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: ownerCookie },
+      body: JSON.stringify({ newOwnerUserId: adminId }),
+    });
+    assert.equal(ownerTransfer.res.status, 200, JSON.stringify(ownerTransfer.body));
+    const newOwnerRow = await pool.query("SELECT owner_user_id FROM teams WHERE id = $1 LIMIT 1", [teamId]);
+    assert.equal(newOwnerRow.rows[0].owner_user_id, adminId);
+
+    const accessTeamOwnerView = await fetchJson(`${baseUrl}/access/team`, {
+      headers: { Cookie: ownerCookie },
+    });
+    assert.equal(accessTeamOwnerView.res.status, 200, JSON.stringify(accessTeamOwnerView.body));
+    assert.equal(
+      accessTeamOwnerView.body.members.some((m) => m.email.toLowerCase() === adminEmail.toLowerCase() && m.role === "owner"),
+      true
+    );
+    assert.equal(
+      accessTeamOwnerView.body.members.some((m) => m.email.toLowerCase() === ownerEmail.toLowerCase() && m.role === "admin"),
+      true
+    );
+  });
 });

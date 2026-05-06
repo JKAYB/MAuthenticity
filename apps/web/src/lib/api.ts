@@ -121,7 +121,7 @@ export type MeResponse = {
   planExpiresAt: string | null;
   hasEverHadPaidPlan: boolean;
   teamId: string | null;
-  teamRole: "owner" | "member" | null;
+  teamRole: "owner" | "admin" | "member" | null;
   isTeamOwner: boolean;
   access: {
     plan_code: string;
@@ -201,7 +201,7 @@ export type AccessStateResponse = {
   has_paid_history: boolean;
   plan_selected: boolean;
   must_change_password: boolean;
-  team_role: "team_owner" | "team_member" | null;
+  team_role: "owner" | "admin" | "member" | null;
   team_id: string | null;
 };
 
@@ -224,6 +224,43 @@ export type TeamMemberRow = {
   must_change_password: boolean;
 };
 
+export type TeamDetailsMember = {
+  id: string;
+  name: string | null;
+  email: string;
+  role: "owner" | "admin" | "member";
+};
+
+export type TeamDetailsResponse = {
+  id: string;
+  name: string;
+  plan: string;
+  owner: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+  members: TeamDetailsMember[];
+};
+
+export async function getTeamDetails(): Promise<TeamDetailsResponse> {
+  return apiJson<TeamDetailsResponse>("/team");
+}
+
+export async function updateTeamMemberRole(memberId: string, role: "admin" | "member"): Promise<{ ok: boolean }> {
+  return apiJson<{ ok: boolean }>(`/team/members/${encodeURIComponent(memberId)}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function transferTeamOwnership(newOwnerUserId: string): Promise<{ ok: boolean }> {
+  return apiJson<{ ok: boolean }>("/team/transfer-ownership", {
+    method: "POST",
+    body: JSON.stringify({ newOwnerUserId }),
+  });
+}
+
 export type TeamInviteRow = {
   id: string;
   email: string;
@@ -241,7 +278,7 @@ export type MyTeamResponse = {
   team: { id: string; owner_user_id: string; name: string | null; created_at: string } | null;
   members: TeamMemberRow[];
   invites: TeamInviteRow[];
-  role?: "team_owner" | "team_member" | null;
+  role?: "owner" | "admin" | "member" | null;
 };
 
 export async function getMyTeam(): Promise<MyTeamResponse> {
