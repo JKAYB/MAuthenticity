@@ -19,7 +19,7 @@ events:
       const json = pm.response.json();
       if (json.token) {
         pm.environment.set("authToken", json.token);
-        console.log("authToken saved to environment");
+        console.info("authToken saved to environment");
       }
       pm.test("Status is 200", () => {
         pm.response.to.have.status(200);

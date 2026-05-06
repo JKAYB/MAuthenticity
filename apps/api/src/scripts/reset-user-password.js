@@ -42,7 +42,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Password reset successful for ${result.rows[0].email}`);
+  console.info(`Password reset successful for ${result.rows[0].email}`);
 }
 
 main()

@@ -36,7 +36,7 @@ async function sendTeamInviteEmail({ to, inviteUrl, teamName, invitedByEmail }) 
   }
 
   const resend = new Resend(apiKey);
-  console.log("EMAIL CONFIG CHECK", {
+  console.info("EMAIL CONFIG CHECK", {
     hasKey: !!process.env.RESEND_API_KEY,
     from: process.env.INVITE_EMAIL_FROM,
   });

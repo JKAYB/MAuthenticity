@@ -32,7 +32,7 @@ events:
       const json = pm.response.json();
       if (pm.response.code === 202 && json.id) {
         pm.environment.set("scanId", json.id);
-        console.log("scanId saved to environment:", json.id);
+        console.info("scanId saved to environment:", json.id);
       }
       pm.test("Status is 202 Accepted", () => {
         pm.response.to.have.status(202);

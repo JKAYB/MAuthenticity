@@ -259,7 +259,7 @@ async function runMigrations() {
 }
 runMigrations()
   .then(() => {
-    console.log("Migrations complete");
+    console.info("Migrations complete");
     return pool.end();
   })
   .catch(async (error) => {

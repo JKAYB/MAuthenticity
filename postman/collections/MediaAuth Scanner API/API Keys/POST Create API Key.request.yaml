@@ -26,7 +26,7 @@ events:
       if (pm.response.code === 201) {
         pm.environment.set("apiKeyId", json.id);
         pm.environment.set("apiKey", json.key);
-        console.log("apiKeyId and apiKey saved to environment");
+        console.info("apiKeyId and apiKey saved to environment");
       }
       pm.test("Status is 201", () => {
         pm.response.to.have.status(201);

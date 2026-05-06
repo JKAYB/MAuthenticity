@@ -4,8 +4,11 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { RouterProvider } from "@tanstack/react-router";
 import { getRouter } from "./router";
+import { installProductionConsoleGuard } from "./lib/consoleGuard";
 import { bindRouterQueryClient, createAppQueryClient } from "./lib/queryClient";
 import "./styles.css";
+
+installProductionConsoleGuard();
 
 const queryClient = createAppQueryClient();
 bindRouterQueryClient(queryClient);

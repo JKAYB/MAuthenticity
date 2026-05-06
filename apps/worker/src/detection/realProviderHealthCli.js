@@ -8,5 +8,5 @@ require("dotenv").config({
 const { validateRealProviderEnv } = require("./realProviderHealth");
 
 const r = validateRealProviderEnv();
-console.log(JSON.stringify(r, null, 2));
+console.info(JSON.stringify(r, null, 2));
 process.exit(r.active && !r.ok ? 1 : 0);

@@ -64,7 +64,7 @@ function PlansPage() {
     try {
       await selectPlan(planCode);
       const freshMe = await fetchFreshMe(qc);
-      console.log("[plans] fresh me after select", freshMe);
+      console.info("[plans] fresh me after select", freshMe);
       const planSelected = Boolean(freshMe.planSelected ?? freshMe.plan_selected);
       if (!planSelected) {
         toast.error("Plan was selected, but profile did not update. Please refresh.");
