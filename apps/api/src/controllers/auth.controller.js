@@ -1,9 +1,11 @@
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 const { pool } = require("../db/pool");
 const { getEffectivePlan } = require("../services/access-control.service");
 const { normalizeEmail } = require("../utils/normalizeEmail");
+const { sendPasswordResetEmail } = require("../services/email.service");
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 200;
@@ -101,6 +103,15 @@ function passwordPolicyError(password) {
   return null;
 }
 
+function hasUsablePasswordHash(passwordHash) {
+  const raw = String(passwordHash || "");
+  return /^\$2[aby]\$\d{2}\$/.test(raw);
+}
+
+function resetTokenHash(rawToken) {
+  return crypto.createHash("sha256").update(String(rawToken || "")).digest("hex");
+}
+
 async function signup(req, res, next) {
   try {
     const password = req.body?.password;
@@ -145,6 +156,9 @@ async function login(req, res, next) {
     const user = rows[0];
 
     if (!user) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    if (!hasUsablePasswordHash(user.password_hash)) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
@@ -216,7 +230,7 @@ async function deleteApiKey(req, res, next) {
 
 async function fetchUserProfile(userId) {
   const { rows } = await pool.query(
-    `SELECT id, email, display_name, organization, plan, plan_selected, must_change_password
+    `SELECT id, email, display_name, organization, plan, plan_selected, must_change_password, password_hash
      FROM users WHERE id = $1 LIMIT 1`,
     [userId]
   );
@@ -272,6 +286,7 @@ async function fetchUserProfile(userId) {
     planSelected,
     onboardingSkipped,
     must_change_password: Boolean(row.must_change_password),
+    hasPassword: hasUsablePasswordHash(row.password_hash),
     subscriptionStatus,
     scanLimit: effectivePlan.scanLimit,
     scansUsed: effectivePlan.scansUsed,
@@ -305,16 +320,16 @@ async function getMe(req, res, next) {
 
 async function changePassword(req, res, next) {
   try {
-    const { currentPassword, newPassword } = req.body ?? {};
-    if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
-      return res.status(400).json({ error: "currentPassword and newPassword are required" });
+    const { currentPassword, newPassword, confirmPassword } = req.body ?? {};
+    if (typeof newPassword !== "string" || typeof confirmPassword !== "string") {
+      return res.status(400).json({ error: "newPassword and confirmPassword are required" });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ error: "Passwords do not match" });
     }
     const policyErr = passwordPolicyError(newPassword);
     if (policyErr) {
       return res.status(400).json({ error: policyErr });
-    }
-    if (currentPassword === newPassword) {
-      return res.status(400).json({ error: "New password must be different from your current password" });
     }
 
     const { rows } = await pool.query(
@@ -326,9 +341,18 @@ async function changePassword(req, res, next) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const valid = await bcrypt.compare(currentPassword, user.password_hash);
-    if (!valid) {
-      return res.status(400).json({ error: "Current password is incorrect" });
+    const hasPassword = hasUsablePasswordHash(user.password_hash);
+    if (hasPassword) {
+      if (typeof currentPassword !== "string" || !currentPassword) {
+        return res.status(400).json({ error: "currentPassword is required for password change" });
+      }
+      if (currentPassword === newPassword) {
+        return res.status(400).json({ error: "New password must be different from your current password" });
+      }
+      const valid = await bcrypt.compare(currentPassword, user.password_hash);
+      if (!valid) {
+        return res.status(400).json({ error: "Current password is incorrect" });
+      }
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
@@ -419,6 +443,105 @@ async function deleteMe(req, res, next) {
   }
 }
 
+async function requestPasswordReset(req, res, next) {
+  const genericResponse = {
+    ok: true,
+    message: "If an account exists, reset instructions have been sent.",
+  };
+  try {
+    const email = normalizeEmail(req.body?.email);
+    if (!email) {
+      return res.json(genericResponse);
+    }
+
+    const userQ = await pool.query("SELECT id, email FROM users WHERE lower(email) = lower($1) LIMIT 1", [email]);
+    const user = userQ.rows[0];
+    if (!user) {
+      return res.json(genericResponse);
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = resetTokenHash(rawToken);
+    const tokenId = uuidv4();
+    await pool.query("BEGIN");
+    try {
+      await pool.query(
+        "UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL",
+        [user.id]
+      );
+      await pool.query(
+        `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at)
+         VALUES ($1, $2, $3, NOW() + INTERVAL '1 hour')`,
+        [tokenId, user.id, tokenHash]
+      );
+      await pool.query("COMMIT");
+    } catch (txError) {
+      await pool.query("ROLLBACK");
+      throw txError;
+    }
+
+    const webAppUrl = String(process.env.WEB_APP_URL || "http://localhost:5173").replace(/\/+$/, "");
+    const resetUrl = `${webAppUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
+    await sendPasswordResetEmail({ to: user.email, resetUrl });
+    return res.json(genericResponse);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function confirmPasswordReset(req, res, next) {
+  try {
+    const token = String(req.body?.token || "").trim();
+    const newPassword = req.body?.newPassword;
+    const confirmPassword = req.body?.confirmPassword;
+    if (!token || typeof newPassword !== "string" || typeof confirmPassword !== "string") {
+      return res.status(400).json({ error: "token, newPassword and confirmPassword are required" });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ error: "Passwords do not match" });
+    }
+    const policyErr = passwordPolicyError(newPassword);
+    if (policyErr) {
+      return res.status(400).json({ error: policyErr });
+    }
+
+    const tokenQ = await pool.query(
+      `SELECT id, user_id
+       FROM password_reset_tokens
+       WHERE token_hash = $1
+         AND used_at IS NULL
+         AND expires_at > NOW()
+       LIMIT 1`,
+      [resetTokenHash(token)]
+    );
+    const resetToken = tokenQ.rows[0];
+    if (!resetToken) {
+      return res.status(400).json({ error: "Invalid or expired reset token" });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await pool.query("BEGIN");
+    try {
+      await pool.query(
+        "UPDATE users SET password_hash = $1, must_change_password = FALSE WHERE id = $2",
+        [passwordHash, resetToken.user_id]
+      );
+      await pool.query("UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1", [resetToken.id]);
+      await pool.query(
+        "UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL",
+        [resetToken.user_id]
+      );
+      await pool.query("COMMIT");
+    } catch (txError) {
+      await pool.query("ROLLBACK");
+      throw txError;
+    }
+    return res.json({ ok: true });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   signup,
   login,
@@ -431,4 +554,6 @@ module.exports = {
   changePassword,
   deleteMe,
   issueAuthSession,
+  requestPasswordReset,
+  confirmPasswordReset,
 };

@@ -7,9 +7,12 @@ const {
   createApiKey,
   deleteApiKey,
   issueAuthSession,
+  requestPasswordReset,
+  confirmPasswordReset,
 } = require("../controllers/auth.controller");
 const { passport } = require("../config/passport");
 const { authMiddleware, requireUser } = require("../middleware/auth.middleware");
+const { createPasswordResetRequestRateLimit } = require("../middleware/rateLimit.middleware");
 
 const router = express.Router();
 
@@ -32,6 +35,8 @@ function isGithubConfigured() {
 router.post("/signup", signup);
 router.post("/login", login);
 router.post("/logout", logout);
+router.post("/password-reset/request", createPasswordResetRequestRateLimit(), requestPasswordReset);
+router.post("/password-reset/confirm", confirmPasswordReset);
 // Mounted at app.use("/auth", ...) → public paths are GET /auth/google and GET /auth/google/callback
 router.get("/google", (req, res, next) => {
   console.info("[auth] GET /auth/google");

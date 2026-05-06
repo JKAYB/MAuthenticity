@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PlansRouteImport } from './routes/plans'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
@@ -30,6 +31,11 @@ import { Route as AppScansIdRouteImport } from './routes/_app.scans.$id'
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlansRoute = PlansRouteImport.update({
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
   '/plans': typeof PlansRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/dashboard': typeof AppDashboardRoute
   '/notifications': typeof AppNotificationsRoute
@@ -137,6 +144,7 @@ export interface FileRoutesByTo {
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
   '/plans': typeof PlansRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/dashboard': typeof AppDashboardRoute
   '/notifications': typeof AppNotificationsRoute
@@ -157,6 +165,7 @@ export interface FileRoutesById {
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
   '/plans': typeof PlansRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/notifications': typeof AppNotificationsRoute
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/how-it-works'
     | '/login'
     | '/plans'
+    | '/reset-password'
     | '/signup'
     | '/dashboard'
     | '/notifications'
@@ -195,6 +205,7 @@ export interface FileRouteTypes {
     | '/how-it-works'
     | '/login'
     | '/plans'
+    | '/reset-password'
     | '/signup'
     | '/dashboard'
     | '/notifications'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '/how-it-works'
     | '/login'
     | '/plans'
+    | '/reset-password'
     | '/signup'
     | '/_app/dashboard'
     | '/_app/notifications'
@@ -234,6 +246,7 @@ export interface RootRouteChildren {
   HowItWorksRoute: typeof HowItWorksRoute
   LoginRoute: typeof LoginRoute
   PlansRoute: typeof PlansRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
   InternalScansRoute: typeof InternalScansRoute
 }
@@ -245,6 +258,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/plans': {
@@ -394,6 +414,7 @@ const rootRouteChildren: RootRouteChildren = {
   HowItWorksRoute: HowItWorksRoute,
   LoginRoute: LoginRoute,
   PlansRoute: PlansRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
   InternalScansRoute: InternalScansRoute,
 }

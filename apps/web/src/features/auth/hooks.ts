@@ -111,7 +111,7 @@ export function useSignup(
   });
 }
 
-type ChangePasswordVars = { currentPassword: string; newPassword: string };
+type ChangePasswordVars = { currentPassword?: string; newPassword: string; confirmPassword: string };
 
 export function useChangePassword(
   options?: Omit<UseMutationOptions<{ ok: boolean }, Error, ChangePasswordVars>, "mutationFn">,

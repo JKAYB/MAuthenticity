@@ -11,6 +11,26 @@ function passwordHashPlaceholder() {
   return crypto.createHash("sha256").update(`oauth:${uuidv4()}`).digest("hex");
 }
 
+function extractVerifiedGoogleEmail(profile) {
+  const emails = Array.isArray(profile?.emails) ? profile.emails : [];
+  const verifiedEntry = emails.find((item) => item?.value && item?.verified === true);
+  if (verifiedEntry?.value) {
+    return normalizeEmail(verifiedEntry.value);
+  }
+  const fallbackEmailVerified = profile?._json?.email_verified === true;
+  const fallbackEmail = profile?._json?.email || null;
+  if (fallbackEmailVerified && fallbackEmail) {
+    return normalizeEmail(fallbackEmail);
+  }
+  return null;
+}
+
+function extractVerifiedGithubEmailFromProfile(profile) {
+  const emails = Array.isArray(profile?.emails) ? profile.emails : [];
+  const verifiedEntry = emails.find((item) => item?.value && item?.verified === true);
+  return normalizeEmail(verifiedEntry?.value || null);
+}
+
 async function fetchGitHubPrimaryEmail(accessToken) {
   const response = await fetch("https://api.github.com/user/emails", {
     headers: {
@@ -46,11 +66,10 @@ function configurePassport() {
         },
         async (_accessToken, _refreshToken, profile, done) => {
           try {
-            const rawEmail = profile?.emails?.[0]?.value;
-            const email = normalizeEmail(rawEmail);
+            const email = extractVerifiedGoogleEmail(profile);
             if (!email) {
-              console.error("[OAuth] Google login failed: provider returned no usable email");
-              return done(null, false, { message: "Google account did not provide a usable email." });
+              console.error("[OAuth] Google login failed: no verified email available");
+              return done(null, false, { message: "Google account did not provide a verified email." });
             }
 
             const googleId = profile?.id ? String(profile.id) : null;
@@ -65,7 +84,7 @@ function configurePassport() {
             if (existing.rows[0]) {
               await pool.query(
                 `UPDATE users
-                 SET google_id = COALESCE($2, google_id),
+                 SET google_id = COALESCE(google_id, $2),
                      display_name = COALESCE(NULLIF($3, ''), display_name),
                      avatar_url = COALESCE(NULLIF($4, ''), avatar_url)
                  WHERE id = $1`,
@@ -111,7 +130,7 @@ function configurePassport() {
             const username = profile?.username ? String(profile.username).trim() : null;
             const avatarUrl = profile?.photos?.[0]?.value ? String(profile.photos[0].value) : null;
 
-            let email = normalizeEmail(profile?.emails?.[0]?.value || null);
+            let email = extractVerifiedGithubEmailFromProfile(profile);
             if (!email && accessToken) {
               email = await fetchGitHubPrimaryEmail(accessToken);
             }
@@ -128,7 +147,7 @@ function configurePassport() {
             if (existing.rows[0]) {
               await pool.query(
                 `UPDATE users
-                 SET github_id = COALESCE($2, github_id),
+                 SET github_id = COALESCE(github_id, $2),
                      display_name = COALESCE(NULLIF($3, ''), display_name),
                      avatar_url = COALESCE(NULLIF($4, ''), avatar_url)
                  WHERE id = $1`,
@@ -158,4 +177,9 @@ function configurePassport() {
   return passport;
 }
 
-module.exports = { configurePassport, passport };
+module.exports = {
+  configurePassport,
+  passport,
+  extractVerifiedGoogleEmail,
+  extractVerifiedGithubEmailFromProfile,
+};

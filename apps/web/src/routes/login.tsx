@@ -447,6 +447,13 @@ export function AuthShell({ mode }: { mode: "login" | "signup" }) {
                   {busy ? "Please wait…" : isLogin ? "Sign in" : "Create account"}
                   <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                 </button>
+                {isLogin ? (
+                  <div className="pt-1 text-right">
+                    <Link to="/reset-password" className="text-xs font-medium text-muted-foreground hover:text-primary">
+                      Forgot password?
+                    </Link>
+                  </div>
+                ) : null}
               </form>
 
               <p className="mt-6 text-center text-sm text-muted-foreground">

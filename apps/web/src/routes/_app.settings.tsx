@@ -184,7 +184,7 @@ function SettingsPage() {
 
           {tab === "security" && (
             <>
-              <PasswordCard liveDemo={liveDemo} />
+              <PasswordCard liveDemo={liveDemo} hasPassword={Boolean(meQuery.data?.hasPassword)} />
               <Card title="Sessions">
                 <div className="space-y-3">
                   <div className="flex flex-col gap-3 rounded-lg border border-border bg-input/30 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
@@ -626,7 +626,7 @@ const PASSWORD_MIN_LEN = 8;
 
 const passwordFormSchema = z
   .object({
-    currentPassword: z.string().min(1, "Enter your current password"),
+    currentPassword: z.string().optional(),
     newPassword: z
       .string()
       .min(PASSWORD_MIN_LEN, `Use at least ${PASSWORD_MIN_LEN} characters`)
@@ -640,7 +640,7 @@ const passwordFormSchema = z
     message: "Passwords do not match",
     path: ["confirmPassword"],
   })
-  .refine((d) => d.currentPassword !== d.newPassword, {
+  .refine((d) => !d.currentPassword || d.currentPassword !== d.newPassword, {
     message: "New password must be different from your current password",
     path: ["newPassword"],
   });
@@ -694,7 +694,7 @@ function PasswordRequirements({ password }: { password: string }) {
   );
 }
 
-function PasswordCard({ liveDemo }: { liveDemo: boolean }) {
+function PasswordCard({ liveDemo, hasPassword }: { liveDemo: boolean; hasPassword: boolean }) {
   const changePw = useChangePassword();
   const form = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordFormSchema),
@@ -707,10 +707,15 @@ function PasswordCard({ liveDemo }: { liveDemo: boolean }) {
 
   const onSubmit = form.handleSubmit(async (values) => {
     if (liveDemo) return;
+    if (hasPassword && !String(values.currentPassword || "").trim()) {
+      form.setError("currentPassword", { type: "manual", message: "Enter your current password" });
+      return;
+    }
     try {
       await changePw.mutateAsync({
-        currentPassword: values.currentPassword,
+        currentPassword: hasPassword ? values.currentPassword : undefined,
         newPassword: values.newPassword,
+        confirmPassword: values.confirmPassword,
       });
       toast.success("Password updated");
       form.reset();
@@ -734,14 +739,22 @@ function PasswordCard({ liveDemo }: { liveDemo: boolean }) {
         noValidate
       >
         <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-          <PasswordInput
-            label="Current password"
-            autoComplete="current-password"
-            error={form.formState.errors.currentPassword?.message}
-            disabled={liveDemo}
-            inputProps={form.register("currentPassword")}
-          />
-          <span className="hidden sm:block" />
+          {hasPassword ? (
+            <>
+              <PasswordInput
+                label="Current password"
+                autoComplete="current-password"
+                error={form.formState.errors.currentPassword?.message}
+                disabled={liveDemo}
+                inputProps={form.register("currentPassword")}
+              />
+              <span className="hidden sm:block" />
+            </>
+          ) : (
+            <p className="min-w-0 text-xs text-muted-foreground sm:col-span-2">
+              No password is set for this account yet. Set one now to enable email/password login.
+            </p>
+          )}
           <PasswordInput
             label="New password"
             autoComplete="new-password"
@@ -759,7 +772,7 @@ function PasswordCard({ liveDemo }: { liveDemo: boolean }) {
           {!liveDemo ? <PasswordRequirements password={newPasswordWatch} /> : null}
         </div>
         <SaveBar
-          label="Update password"
+          label={hasPassword ? "Change password" : "Set password"}
           primaryType="submit"
           primaryDisabled={changePw.isPending || liveDemo}
           onCancel={() => form.reset()}
